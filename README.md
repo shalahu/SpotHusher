@@ -81,7 +81,7 @@ To clone and build SpotHusher from source:
 
 ```bash
 # Clone the repository
-git clone [https://github.com/shalahu/SpotHusher.git)
+git clone https://github.com/shalahu/SpotHusher.git
 
 # Navigate to the project directory
 cd SpotHusher
