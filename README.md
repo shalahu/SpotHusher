@@ -44,7 +44,7 @@ Options can be managed instantly by right-clicking the SpotHusher icon in your s
 ![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/screenshot.jpg)
 
 ### Configuration
-Options can be managed instantly by right-clicking the SpotHusher icon (shield/speaker icon) in your system tray:
+Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
 * **Auto-Skip Ads via Restart:** Toggles the process-restart skip method.
 * **Auto-Launch Spotify With SpotHusher:** Automatically initializes Spotify alongside this tool.
 * **Auto-Pause Spotify On Lock & Sleep:** Activates the session-state system event listeners.
@@ -93,7 +93,7 @@ dotnet build -c Release
 ### Key Dependencies
 * **[AudioSwitcher.AudioApi.CoreAudio](https://github.com/xenolightning/AudioSwitcher):** For managing and switching native Windows audio playback endpoints.
 
-* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; <u>if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/NLog.dll) must reside in the app directory.</u>
+* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; **if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/NLog.dll) must reside in the app directory.**
 
 ---
 
