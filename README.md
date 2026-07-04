@@ -7,11 +7,10 @@ SpotHusher is a lightweight, zero-injection Windows system tray application desi
 ## ✨ Features
 
 * **🚫 Smart Ad Muting:** Instantly mutes Spotify's specific audio session the millisecond an advertisement begins, and unmutes as soon as your music returns.
-* **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track.
+* **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track. <u>**Enable this feature may cause screen flash.**</u>
 * **🎧 Built-in Audio Output Switcher:** Easily change your active Windows playback device directly from the SpotHusher system tray menu.
-* **⏸️ Smart Auto-Pause:** Automatically triggers a pause command when your Windows session locks or enters sleep/suspend modes, keeping your place in your playlist.
+* **⏸️ Smart Auto-Pause:** Automatically triggers a pause command when your Windows session locks or enters sleep/suspend modes, keeping your place in your playlist. <u>Double click icon in system tray to resume or pause again.</u>
 * **🚀 Seamless Automation:** Includes options to automatically launch Spotify when SpotHusher starts, run at Windows startup, and quickly generate a desktop shortcut.
-* **🛡️ Stealth & Lightweight:** Runs completely out of the system tray with negligible CPU and memory overhead.
 
 ---
 
@@ -55,6 +54,27 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 
 ---
 
+## 📅 Changelog
+
+### [V1.4]
+* **Feature:** Added smart auto-pause behavior when the Windows session locks or enters suspend/sleep states.
+
+### [V1.3]
+* **Feature:** Added option to automatically launch the Spotify client whenever SpotHusher starts.
+
+### [V1.2]
+* **Feature:** Integrated a native Windows Core Audio switcher to change audio output devices on the fly.
+
+### [V1.1]
+* **Feature:** Introduced high-speed "Force-Skip Ads via Restart" method to cycle the client instead of just muting.
+
+### [V1.0] - Initial Release
+* **Core Function:** Real-time Spotify advertisement muting.
+* **Automation:** Added options to run at Windows startup and generate desktop shortcuts easily.
+* **Control:** Added toggle to temporarily disable/enable SpotHusher protection from the tray menu.
+
+---
+
 ## 🛠️ Development & Compilation
 
 To clone and build SpotHusher from source:
@@ -73,7 +93,7 @@ dotnet build -c Release
 ### Key Dependencies
 * **[AudioSwitcher.AudioApi.CoreAudio](https://github.com/xenolightning/AudioSwitcher):** For managing and switching native Windows audio playback endpoints.
 
-* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood.
+* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; <u>if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/NLog.dll) must reside in the app directory.</u>
 
 ---
 
