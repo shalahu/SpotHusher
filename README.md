@@ -35,9 +35,14 @@ SpotHusher achieves its functionality through clean native Windows integrations:
 ## 🚀 Getting Started
 
 ### Installation
-1. Download the latest release from the [Releases](#) tab.
+1. Download the latest release from the [Releases](https://github.com/shalahu/SpotHusher/releases) tab.
 2. Extract the files to a local directory of your choice.
 3. Run `SpotHusher.exe`.
+
+### Configuration & Preview
+Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
+
+![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/screenshot.jpg)
 
 ### Configuration
 Options can be managed instantly by right-clicking the SpotHusher icon (shield/speaker icon) in your system tray:
@@ -56,7 +61,7 @@ To clone and build SpotHusher from source:
 
 ```bash
 # Clone the repository
-git clone [https://github.com/yourusername/SpotHusher.git](https://github.com/yourusername/SpotHusher.git)
+git clone [https://github.com/shalahu/SpotHusher.git)
 
 # Navigate to the project directory
 cd SpotHusher
@@ -65,19 +70,28 @@ cd SpotHusher
 dotnet build -c Release
 ```
 
+### Key Dependencies
+* **[AudioSwitcher.AudioApi.CoreAudio](https://github.com/xenolightning/AudioSwitcher):** For managing and switching native Windows audio playback endpoints.
+
+* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood.
+
 ---
 
-### Key Dependencies
-* **AudioSwitcher.AudioApi.CoreAudio:** For managing and switching native Windows audio playback endpoints.
+## 💖 Acknowledgements & Inspiration
+SpotHusher stands on the shoulders of several fantastic open-source projects and developer communities. We would like to express our gratitude and extend credits to:
 
-* **NLog:** For robust, decoupled diagnostic logging under the hood.
+* **[SpotifyAdMuter](https://github.com/enpandi/SpotifyAdMuter)** – For pioneering lightweight, non-intrusive approach to muting ads on Windows platforms.
+
+* **[AudioSwitcher_v1](https://github.com/xenolightning/AudioSwitcher_v1)** – For providing a robust framework that greatly simplified the integration of C# with native Windows Core Audio APIs for endpoint switching.
+
+* **[EZBlocker3](https://github.com/OpenByteDev/EZBlocker3)** – A major inspiration for the ad detection mechanism, showcasing how to cleanly utilize window titles and OS interaction for ad blocking without process injection.
+
+* **[Google's Gemini](https://gemini.google.com/)** – For assisting in structuring this project, crafting the documentation, and providing architectural refinement during development.
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) file for details.
 
 ## ⚠️ Disclaimer
 This project is an independent open-source utility developed for educational and personal workflow automation purposes. It is not affiliated with, authorized, or endorsed by Spotify.
