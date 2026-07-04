@@ -11,6 +11,14 @@
     <ApplicationIcon>SpotHusher_mute.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A lightweight, zero-injection Windows utility that automatically mutes or skips Spotify advertisements by leveraging Win32 hooks and Core Audio COM interfaces.</Description>
+    <Title>$(AssemblyName)</Title>
+    <PackageProjectUrl>https://github.com/shalahu/SpotHusher/</PackageProjectUrl>
+    <MajorVersion>1</MajorVersion>
+    <MinorVersion>4</MinorVersion>
+    <DaysSince2026>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse("2026-01-01"))).Days)</DaysSince2026>
+    <MinutesOfDay>$([System.DateTime]::UtcNow.TimeOfDay.TotalMinutes.ToString("0"))</MinutesOfDay>
+    <Version>$(MajorVersion).$(MinorVersion).$(DaysSince2026).$(MinutesOfDay)</Version>
+    <Copyright>Copyright (c) 2026 SpotHusher (MIT License)</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
