@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <ApplicationIcon>SpotHusher_mute.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>A lightweight, zero-injection Windows utility that automatically mutes or skips Spotify advertisements by leveraging Win32 hooks and Core Audio COM interfaces.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="SpotHusher_mute.ico" />
+    <EmbeddedResource Include="SpotHusher_paused.ico" />
+    <EmbeddedResource Include="SpotHusher_play.ico" />
+    <EmbeddedResource Include="SpotHusher_disabled.ico" />
+    <EmbeddedResource Include="SpotHusher_not_running.ico" />
+  </ItemGroup>
+
+</Project>

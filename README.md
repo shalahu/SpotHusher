@@ -1,0 +1,83 @@
+# SpotHusher 🤫
+
+SpotHusher is a lightweight, zero-injection Windows system tray application designed to enhance your Spotify listening experience. By utilizing low-level Windows APIs and Core Audio COM interfaces, SpotHusher monitors Spotify's playback status in real-time to automatically mute advertisements or optionally skip them entirely by quickly cycling the client.
+
+---
+
+## ✨ Features
+
+* **🚫 Smart Ad Muting:** Instantly mutes Spotify's specific audio session the millisecond an advertisement begins, and unmutes as soon as your music returns.
+* **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track.
+* **🎧 Built-in Audio Output Switcher:** Easily change your active Windows playback device directly from the SpotHusher system tray menu.
+* **⏸️ Smart Auto-Pause:** Automatically triggers a pause command when your Windows session locks or enters sleep/suspend modes, keeping your place in your playlist.
+* **🚀 Seamless Automation:** Includes options to automatically launch Spotify when SpotHusher starts, run at Windows startup, and quickly generate a desktop shortcut.
+* **🛡️ Stealth & Lightweight:** Runs completely out of the system tray with negligible CPU and memory overhead.
+
+---
+
+## 🛠️ How It Works
+
+SpotHusher achieves its functionality through clean native Windows integrations:
+
+1.  **Playback Monitoring:** It establishes a `SetWinEventHook` native hook to listen for window title changes across the system. It safely extracts track details and isolates advertisement signatures from the Spotify process structure without deep process hooking.
+2.  **Audio Session Targeting:** Using the Windows Core Audio APIs (`IMMDeviceEnumerator`, `IAudioSessionManager2`), it locates the exact audio sub-session corresponding to Spotify's PID and applies an explicit mute state via `ISimpleAudioVolume`. This ensures your master volume and other applications remain completely unaffected.
+
+---
+
+## 📋 Requirements
+
+* **OS:** Windows 10 / Windows 11
+* **Runtime:** [.NET 10.0 Runtime](https://dotnet.microsoft.com/download) (or higher)
+* **Target Application:** Spotify Desktop Client (Windows Store or standalone installation)
+
+---
+
+## 🚀 Getting Started
+
+### Installation
+1. Download the latest release from the [Releases](#) tab.
+2. Extract the files to a local directory of your choice.
+3. Run `SpotHusher.exe`.
+
+### Configuration
+Options can be managed instantly by right-clicking the SpotHusher icon (shield/speaker icon) in your system tray:
+* **Auto-Skip Ads via Restart:** Toggles the process-restart skip method.
+* **Auto-Launch Spotify With SpotHusher:** Automatically initializes Spotify alongside this tool.
+* **Auto-Pause Spotify On Lock & Sleep:** Activates the session-state system event listeners.
+* **Switch Audio Output:** Lists and toggles your current active playback hardware.
+
+Settings are saved locally in an automatically generated `appsettings.json` file inside the application directory.
+
+---
+
+## 🛠️ Development & Compilation
+
+To clone and build SpotHusher from source:
+
+```bash
+# Clone the repository
+git clone [https://github.com/yourusername/SpotHusher.git](https://github.com/yourusername/SpotHusher.git)
+
+# Navigate to the project directory
+cd SpotHusher
+
+# Build the project
+dotnet build -c Release
+```
+
+---
+
+### Key Dependencies
+* **AudioSwitcher.AudioApi.CoreAudio:** For managing and switching native Windows audio playback endpoints.
+
+* **NLog:** For robust, decoupled diagnostic logging under the hood.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+## ⚠️ Disclaimer
+This project is an independent open-source utility developed for educational and personal workflow automation purposes. It is not affiliated with, authorized, or endorsed by Spotify.
