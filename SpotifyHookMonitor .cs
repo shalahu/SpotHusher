@@ -114,15 +114,33 @@ public class SpotifyHookMonitor : IDisposable
 
                     var cls = new StringBuilder(256);
                     GetClassName(hwnd, cls, cls.Capacity);
+                    string className = cls.ToString();
+
+                    if (!className.StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase)) 
+                        continue;
+
                     var ttl = new StringBuilder(512);
                     GetWindowText(hwnd, ttl, ttl.Capacity);
                     var title = ttl.ToString().Trim();
 
-                    if (!isHidden &&
-                        cls.ToString().StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase) &&
-                        !string.IsNullOrEmpty(title)) return hwnd;
+                    if (!isHidden)
+                    {
+                        if (!string.IsNullOrEmpty(title)) return hwnd;
+                    }
+                    else
+                    {
+                        if (backupHwnd == IntPtr.Zero && IsTitleValid(title)) 
+                            backupHwnd = hwnd;
+                    }
+                }
+            }
 
-                    if (backupHwnd == IntPtr.Zero && IsTitleValid(title)) backupHwnd = hwnd;
+            if (backupHwnd == IntPtr.Zero)
+            {
+                foreach (var p in processes)
+                {
+                    if (p.MainWindowHandle != IntPtr.Zero)
+                        return p.MainWindowHandle;
                 }
             }
 
