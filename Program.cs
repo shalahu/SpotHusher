@@ -1,9 +1,10 @@
 using AudioSwitcher.AudioApi.CoreAudio;
+using Gma.System.MouseKeyHook;
 using Microsoft.Win32;
 using SpotHusher;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text.Json;
+using System.Text;
 
 using (_ = new Mutex(true, "Global\\SpotHusher_SingleInstance_Mutex_Key", out var isNewInstance))
 {
@@ -15,16 +16,8 @@ using (_ = new Mutex(true, "Global\\SpotHusher_SingleInstance_Mutex_Key", out va
     Application.Run(appContext);
 }
 
-public class SpotHusherConfig
-{
-    public bool AutoSkipAdViaRestartEnabled { get; set; }
-    public bool AutoLaunchSpotifyEnabled { get; set; }
-    public bool AutoPausePlaybackEnabled { get; set; }
-}
-
 public class BackgroundAppContext : ApplicationContext
 {
-    private static readonly string JsonConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
     private readonly ToolStripMenuItem _autoLaunchItem;
     private readonly ToolStripMenuItem _autoSkipAdItem;
     private readonly ToolStripMenuItem _autoStartItem;
@@ -37,23 +30,29 @@ public class BackgroundAppContext : ApplicationContext
     private readonly Icon _playIcon;
     private readonly Icon _disabledIcon;
     private readonly Icon _notRunningIcon;
-    private readonly ToolStripMenuItem _playPauseItem;
+    private readonly ToolStripControlHost _playPauseItem;
     private readonly ToolStripMenuItem _shortcutItem;
-
-    private readonly ToolStripMenuItem _trackItem;
+    private readonly ToolStripMenuItem _volumeAdjustItem;
+    private readonly ToolStripLabel _trackItem;
     private readonly NotifyIcon _trayIcon;
+
     private bool _currentAdState;
     private string _currentTrackTitle;
-
     private List<CoreAudioDevice> _devices = [];
     private bool _isSpotifyPlaying;
     private bool _isUserPaused;
     private bool _wasHiddenBefore;
     private bool _autoPlayAfterLaunch;
     private bool _playNext;
+    private Button _btnPlay;
+    private Dictionary<MouseButtons, string> _mouseMacroBindings = new();
+
+    private static IKeyboardMouseEvents? _globalHook;
 
     public BackgroundAppContext()
     {
+        _globalHook = Hook.GlobalEvents();
+
         _playIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_play.ico", SystemIcons.Shield);
         _muteIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_mute.ico", SystemIcons.Error);
         _pausedIcon =
@@ -67,63 +66,47 @@ public class BackgroundAppContext : ApplicationContext
 
         _monitor = new SpotifyHookMonitor();
         _monitor.OnPlaybackChanged = title =>
-        {
-            if (_trayIcon.ContextMenuStrip.InvokeRequired)
-                _trayIcon.ContextMenuStrip.BeginInvoke(() => Task.Run(async () => await ProcessSpotifyTitle(title)));
-            else
-                Task.Run(async () => await ProcessSpotifyTitle(title));
-        };
+            {
+                if (_trayIcon.ContextMenuStrip.InvokeRequired)
+                    _trayIcon.ContextMenuStrip.BeginInvoke(() => Task.Run(async () => await ProcessSpotifyTitle(title)));
+                else
+                    Task.Run(async () => await ProcessSpotifyTitle(title));
+            };
 
         _monitor.Start();
 
         _currentTrackTitle = _monitor.FetchCurrentTitle();
 
-        _trackItem = new ToolStripMenuItem($"🎵 Playing: {_currentTrackTitle}") { Enabled = false };
+        _trackItem = new ToolStripLabel($"🎵 Playing: {_currentTrackTitle}");
 
         _launchItem = new ToolStripMenuItem("🚀 Launch Spotify", null, (s, e) => { LaunchSpotifyClient(false); })
         { Visible = false };
 
-        _playPauseItem = new ToolStripMenuItem("⏯️ Play / Resume Playback", null, (s, e) => { PlayPause(); })
-        { Visible = false };
-
-        void PlayPause()
-        {
-            if (!_currentAdState)
-                try
-                {
-                    _monitor.PlayPause();
-                }
-                catch (Exception ex)
-                {
-                    _trayIcon.ShowBalloonTip(3000, "Failed to send ⚠️",
-                        $"Error sending {(_isSpotifyPlaying ? "Pause Playback" : "Resume Playback")}: {ex.Message}",
-                        ToolTipIcon.Warning);
-                }
-        }
+        _playPauseItem = CreateMediaControlItem();
 
         _autoSkipAdItem = new ToolStripMenuItem("⚡ Auto-Skip Ads via Restart (May Cause Screen Flash)", null, (s, e) =>
         {
-            IsAutoSkipAdViaRestartEnabled = !IsAutoSkipAdViaRestartEnabled;
-            _autoSkipAdItem.Checked = IsAutoSkipAdViaRestartEnabled;
+            AppDefs.AppCfgs.SetValue(nameof(AppCfgs.AutoSkipAdViaRestartEnabled), !AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled);
+            _autoSkipAdItem.Checked = AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled;
 
-            if (IsAutoSkipAdViaRestartEnabled && _currentAdState && !_isUserPaused)
+            if (AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled && _currentAdState && !_isUserPaused)
             {
                 Task.Run(async () => await ExecuteForceSkipAd());
             }
         });
 
-        _autoLaunchItem = new ToolStripMenuItem(" ▶️ Auto-Launch Spotify With SpotHusher", null, (s, e) =>
+        _autoLaunchItem = new ToolStripMenuItem(" ▶️ Auto-Launch Spotify with SpotHusher", null, (s, e) =>
         {
-            IsAutoLaunchSpotifyEnabled = !IsAutoLaunchSpotifyEnabled;
-            _autoLaunchItem.Checked = IsAutoLaunchSpotifyEnabled;
+            AppDefs.AppCfgs.SetValue(nameof(AppCfgs.AutoLaunchSpotifyEnabled), !AppDefs.AppCfgs.AutoLaunchSpotifyEnabled);
+            _autoLaunchItem.Checked = AppDefs.AppCfgs.AutoLaunchSpotifyEnabled;
         });
 
-        _autoPauseItem = new ToolStripMenuItem("⏸️ Auto-Pause Spotify On Lock & Sleep", null, (s, e) =>
+        _autoPauseItem = new ToolStripMenuItem("⏸️ Auto-Pause Spotify on Lock & Sleep", null, (s, e) =>
         {
-            IsAutoPausePlaybackEnabled = !IsAutoPausePlaybackEnabled;
-            _autoPauseItem.Checked = IsAutoPausePlaybackEnabled;
+            AppDefs.AppCfgs.SetValue(nameof(AppCfgs.AutoPausePlaybackEnabled), !AppDefs.AppCfgs.AutoPausePlaybackEnabled);
+            _autoPauseItem.Checked = AppDefs.AppCfgs.AutoPausePlaybackEnabled;
 
-            if (IsAutoPausePlaybackEnabled)
+            if (AppDefs.AppCfgs.AutoPausePlaybackEnabled)
             {
                 AddAutoPausePlaybackEvent();
             }
@@ -134,6 +117,20 @@ public class BackgroundAppContext : ApplicationContext
         });
 
         var audioDevicesMenu = new ToolStripMenuItem("🎧 Switch Audio Output");
+        _volumeAdjustItem = new ToolStripMenuItem(string.Format(AppDefs.VolumeTextTemplate, "?", AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep), null, (s, e) =>
+        {
+            AppDefs.AppCfgs.SetValue(nameof(AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled), !AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled);
+            _volumeAdjustItem.Checked = AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled;
+
+            if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
+            {
+                _globalHook.MouseWheelExt += OnMouseWheelExt;
+            }
+            else
+            {
+                _globalHook.MouseWheelExt -= OnMouseWheelExt;
+            }
+        });
 
         _shortcutItem = new ToolStripMenuItem("📌 Create Desktop Shortcut", null, (s, e) =>
         {
@@ -210,7 +207,7 @@ public class BackgroundAppContext : ApplicationContext
                 _husherItem.Text = "🚫 Disable SpotHusher";
                 Task.Run(async () => await SpotifyAudioController.SetMute(_currentAdState));
 
-                if (IsAutoSkipAdViaRestartEnabled && _currentAdState)
+                if (AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled && _currentAdState)
                 {
                     Task.Run(async () => await ExecuteForceSkipAd());
                 }
@@ -225,6 +222,9 @@ public class BackgroundAppContext : ApplicationContext
             SpotifyAudioController.Dispose();
 
             RemoveAutoPausePlaybackEvent();
+
+            _globalHook.MouseWheelExt -= OnMouseWheelExt;
+            _globalHook.MouseDownExt -= OnGlobalMouseDown;
 
             _trayIcon.Visible = false;
 
@@ -251,9 +251,10 @@ public class BackgroundAppContext : ApplicationContext
 
                 var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 _shortcutItem.Checked = File.Exists(Path.Combine(desktopPath, "SpotHusher.lnk"));
-                _autoSkipAdItem.Checked = IsAutoSkipAdViaRestartEnabled;
-                _autoLaunchItem.Checked = IsAutoLaunchSpotifyEnabled;
-                _autoPauseItem.Checked = IsAutoPausePlaybackEnabled;
+                _autoSkipAdItem.Checked = AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled;
+                _autoLaunchItem.Checked = AppDefs.AppCfgs.AutoLaunchSpotifyEnabled;
+                _autoPauseItem.Checked = AppDefs.AppCfgs.AutoPausePlaybackEnabled;
+                _volumeAdjustItem.Checked = AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled;
 
                 if (_currentTrackTitle != AppDefs.SpotifyNotRunning) UpdateSpotifyStatus();
 
@@ -265,12 +266,17 @@ public class BackgroundAppContext : ApplicationContext
 
                         case { Count: 0 }:
                             {
-                                var item = new ToolStripMenuItem("No audio devices found") { Enabled = false };
+                                var item = new ToolStripMenuItem("No audio devices found. Try again later...") { Enabled = false };
                                 audioDevicesMenu.DropDownItems.Add(item);
 
                                 return;
                             }
                     }
+
+                if (_devices.Count > audioDevicesMenu.DropDownItems.Count)
+                {
+                    audioDevicesMenu.DropDownItems.Clear();
+                }
 
                 foreach (var device in _devices)
                 {
@@ -278,18 +284,24 @@ public class BackgroundAppContext : ApplicationContext
 
                     if (device.IsDefaultDevice)
                     {
+                        _volumeAdjustItem.Text = string.Format(AppDefs.VolumeTextTemplate, device.Volume, AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep);
+                        deviceItem.Enabled = false;
                         deviceItem.Checked = true;
                         deviceItem.Font = new Font(deviceItem.Font, FontStyle.Bold);
                     }
+
+                    deviceItem.Image = LoadIconFromResourceString(device.IconPath);
 
                     deviceItem.Click += async (s, ev) =>
                     {
                         foreach (ToolStripMenuItem item in audioDevicesMenu.DropDownItems)
                         {
+                            item.Enabled = true;
                             item.Checked = false;
                             item.Font = new Font(deviceItem.Font, FontStyle.Regular);
                         }
 
+                        deviceItem.Enabled = false;
                         deviceItem.Checked = true;
                         deviceItem.Font = new Font(deviceItem.Font, FontStyle.Bold);
 
@@ -317,6 +329,7 @@ public class BackgroundAppContext : ApplicationContext
         contextMenu.Items.Add(_autoLaunchItem);
         contextMenu.Items.Add(_autoPauseItem);
         contextMenu.Items.Add(audioDevicesMenu);
+        contextMenu.Items.Add(_volumeAdjustItem);
         contextMenu.Items.Add(_shortcutItem);
         contextMenu.Items.Add(_autoStartItem);
         contextMenu.Items.Add(new ToolStripSeparator());
@@ -331,16 +344,30 @@ public class BackgroundAppContext : ApplicationContext
 
         Task.Run(async () => _devices = await SpotifyAudioController.GetActiveDevices());
 
-        if (IsAutoLaunchSpotifyEnabled)
+        if (AppDefs.AppCfgs.AutoLaunchSpotifyEnabled)
         {
             LaunchSpotifyClient(false);
         }
 
-        if (IsAutoPausePlaybackEnabled)
+        if (AppDefs.AppCfgs.AutoPausePlaybackEnabled)
         {
             AddAutoPausePlaybackEvent();
         }
+
+        if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
+        {
+            _globalHook.MouseWheelExt += OnMouseWheelExt;
+        }
+
+        if (!string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings))
+        {
+            _mouseMacroBindings = LoadMouseMacroBindingsFromString(AppDefs.AppCfgs.MouseMacroBindings);
+
+            _globalHook.MouseDownExt += OnGlobalMouseDown;
+        }
+
         return;
+
         void AddAutoPausePlaybackEvent()
         {
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -351,6 +378,150 @@ public class BackgroundAppContext : ApplicationContext
         {
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             SystemEvents.SessionSwitch -= OnSessionSwitch;
+        }
+    }
+
+    private static Dictionary<MouseButtons, string> LoadMouseMacroBindingsFromString(string value)
+    {
+        Dictionary<MouseButtons, string> _bindings = new();
+
+        if (string.IsNullOrWhiteSpace(value)) return _bindings;
+
+        var pairs = value.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split(':', 2);
+            if (parts.Length == 2 && Enum.TryParse(parts[0], out MouseButtons button))
+            {
+                _bindings[button] = parts[1];
+            }
+        }
+
+        return _bindings;
+    }
+
+    private void OnGlobalMouseDown(object sender, MouseEventExtArgs e)
+    {
+        if (_mouseMacroBindings.TryGetValue(e.Button, out string sendKeysPattern))
+        {
+            if (!string.IsNullOrWhiteSpace(sendKeysPattern))
+            {
+                SendKeys.SendWait(sendKeysPattern);
+                e.Handled = true;
+            }
+        }
+    }
+
+    private ToolStripControlHost CreateMediaControlItem()
+    {
+        FlowLayoutPanel panel = new FlowLayoutPanel
+        {
+            Size = new Size(256, 52),
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            WrapContents = false
+        };
+
+        Button btnPrev = CreateMediaButton("⏮", (s, e) => { _monitor.PreviousTrack(); });
+        _btnPlay = CreateMediaButton("⏸️ / ▶️", (s, e) => { PlayPause(); });
+        Button btnNext = CreateMediaButton("⏭", (s, e) => { _monitor.NextTrack(); });
+
+        panel.Controls.Add(btnPrev);
+        panel.Controls.Add(_btnPlay);
+        panel.Controls.Add(btnNext);
+
+        ToolStripControlHost hostItem = new ToolStripControlHost(panel);
+
+        hostItem.AutoSize = false;
+        hostItem.Size = panel.Size;
+        hostItem.Margin = Padding.Empty;
+        hostItem.Padding = Padding.Empty;
+
+        return hostItem;
+    }
+
+    private static Button CreateMediaButton(string text, EventHandler onClick)
+    {
+        var btn = new Button
+        {
+            Text = text,
+            Size = new Size(44, 44),
+            FlatStyle = FlatStyle.Flat,
+            Margin = new Padding(4, 4, 4, 4)
+        };
+
+        btn.Click += onClick;
+
+        return btn;
+    }
+
+    private static void OnMouseWheelExt(object? sender, MouseEventExtArgs e)
+    {
+        try
+        {
+            IntPtr hWndUnderMouse = WindowFromPoint(new Point { x = e.X, y = e.Y });
+            if (IsTaskbarWindow(hWndUnderMouse))
+            {
+                bool isScrollUp = e.Delta > 0;
+                Task.Run(async () => await AdjustSystemVolume(isScrollUp));
+                e.Handled = true;
+            }
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    private void PlayPause()
+    {
+        if (!_currentAdState)
+        {
+            try
+            {
+                _monitor.PlayPause();
+            }
+            catch (Exception ex)
+            {
+                _trayIcon.ShowBalloonTip(3000, "Failed to send ⚠️",
+                    $"Error sending {(_isSpotifyPlaying ? "Pause Playback" : "Resume Playback")}: {ex.Message}",
+                    ToolTipIcon.Warning);
+            }
+        }
+    }
+
+    private static bool IsTaskbarWindow(IntPtr hWnd)
+    {
+        try
+        {
+            if (hWnd == IntPtr.Zero) return false;
+            var buffer = new StringBuilder(256);
+            int length = GetClassNameW(hWnd, buffer, buffer.Capacity);
+            if (length == 0) return false;
+            string className = buffer.ToString();
+
+            var targets = new List<string>() { "TrayShowDesktopButtonWClass", "TrayClockWClass", "MSTaskListWClass", "ToolbarWindow32", "Shell_TrayWnd", "SIBTrayButton", "MSTaskSwWClass" };
+
+            return targets.Any(i => string.Compare(i, className, StringComparison.OrdinalIgnoreCase) == 0);
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return false;
+    }
+
+    private static async Task AdjustSystemVolume(bool isVolumeUp)
+    {
+        try
+        {
+            await SpotifyAudioController.AdjustVolume(isVolumeUp);
+        }
+        catch
+        {
+            // ignored
         }
     }
 
@@ -384,153 +555,6 @@ public class BackgroundAppContext : ApplicationContext
         }
     }
 
-    private bool IsAutoSkipAdViaRestartEnabled
-    {
-        get
-        {
-            try
-            {
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    var config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString);
-                    return config != null && config.AutoSkipAdViaRestartEnabled;
-                }
-            }
-            catch
-            {
-                // ignored
-            }
-
-            return false;
-        }
-        set
-        {
-            try
-            {
-                SpotHusherConfig config;
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString) ?? new SpotHusherConfig();
-                }
-                else
-                {
-                    config = new SpotHusherConfig();
-                }
-
-                config.AutoSkipAdViaRestartEnabled = value;
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var updatedJson = JsonSerializer.Serialize(config, options);
-                File.WriteAllText(JsonConfigPath, updatedJson);
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-    }
-
-    private bool IsAutoLaunchSpotifyEnabled
-    {
-        get
-        {
-            try
-            {
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    var config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString);
-                    return config != null && config.AutoLaunchSpotifyEnabled;
-                }
-            }
-            catch
-            {
-                // ignored
-            }
-
-            return false;
-        }
-        set
-        {
-            try
-            {
-                SpotHusherConfig config;
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString) ?? new SpotHusherConfig();
-                }
-                else
-                {
-                    config = new SpotHusherConfig();
-                }
-
-                config.AutoLaunchSpotifyEnabled = value;
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var updatedJson = JsonSerializer.Serialize(config, options);
-                File.WriteAllText(JsonConfigPath, updatedJson);
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-    }
-
-    private bool IsAutoPausePlaybackEnabled
-    {
-        get
-        {
-            try
-            {
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    var config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString);
-                    return config != null && config.AutoPausePlaybackEnabled;
-                }
-            }
-            catch
-            {
-                // ignored
-            }
-
-            return false;
-        }
-        set
-        {
-            try
-            {
-                SpotHusherConfig config;
-                if (File.Exists(JsonConfigPath))
-                {
-                    var jsonString = File.ReadAllText(JsonConfigPath);
-                    config = JsonSerializer.Deserialize<SpotHusherConfig>(jsonString) ?? new SpotHusherConfig();
-                }
-                else
-                {
-                    config = new SpotHusherConfig();
-                }
-
-                config.AutoPausePlaybackEnabled = value;
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var updatedJson = JsonSerializer.Serialize(config, options);
-                File.WriteAllText(JsonConfigPath, updatedJson);
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-    }
-
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
     private async Task ExecuteForceSkipAd()
     {
         try
@@ -546,7 +570,9 @@ public class BackgroundAppContext : ApplicationContext
                 try
                 {
                     p.Kill();
-                    await p.WaitForExitAsync();
+
+                    // not suitable for awaitable method of WaitForExit, we MUST use a synchronous call here
+                    p.WaitForExit();
                 }
                 catch
                 {
@@ -590,6 +616,8 @@ public class BackgroundAppContext : ApplicationContext
 
             if (_playNext)
             {
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+
                 Logger.Debug($"Trigger {nameof(_monitor.NextTrack)} when {nameof(_autoPlayAfterLaunch)} is {_autoPlayAfterLaunch} and {nameof(_playNext)} is {_playNext}.");
 
                 _monitor.NextTrack();
@@ -608,7 +636,7 @@ public class BackgroundAppContext : ApplicationContext
         _currentTrackTitle = string.IsNullOrWhiteSpace(title) ? "No active media" :
             title == AppDefs.SpotifyNotRunning ? AppDefs.SpotifyNotRunning :
             isAd ? "Ad..." :
-            _isSpotifyPlaying ? title : "Double-click to resume";
+            _isSpotifyPlaying ? title : "Double-click the tray icon to resume";
         _currentAdState = isAd;
 
         if (_trayIcon.ContextMenuStrip.InvokeRequired)
@@ -618,7 +646,7 @@ public class BackgroundAppContext : ApplicationContext
 
         if (!_isUserPaused)
         {
-            if (isAd && IsAutoSkipAdViaRestartEnabled)
+            if (isAd && AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled)
             {
                 await ExecuteForceSkipAd();
 
@@ -637,7 +665,7 @@ public class BackgroundAppContext : ApplicationContext
     private void UpdateSpotifyStatus()
     {
         _trackItem.Text = $"{(_isSpotifyPlaying ? "🎵 Playing" : "⏸️ Paused")}: {_currentTrackTitle}";
-        _playPauseItem.Text = _isSpotifyPlaying ? "⏸️ Pause Playback" : "▶️ Resume Playback";
+        _btnPlay.Text = _isSpotifyPlaying ? "⏸️" : "▶️";
     }
 
     private void LaunchSpotifyClient(bool autoPlayAfterLaunch, bool playNext = true)
@@ -728,4 +756,59 @@ public class BackgroundAppContext : ApplicationContext
             }
         }
     }
+
+    public static Image? LoadIconFromResourceString(string resourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(resourcePath)) return null;
+
+        try
+        {
+            string expandedPath = Environment.ExpandEnvironmentVariables(resourcePath);
+            int commaIndex = expandedPath.LastIndexOf(',');
+
+            if (commaIndex == -1) return null;
+
+            string dllPath = expandedPath[..commaIndex];
+            string idStr = expandedPath[(commaIndex + 1)..];
+
+            if (!int.TryParse(idStr, out int resourceId)) return null;
+
+            int targetId = Math.Abs(resourceId);
+            IntPtr[] phIcon = new IntPtr[1];
+            uint[] pIconId = new uint[1];
+            uint result = PrivateExtractIconsW(dllPath, resourceId, 16, 16, phIcon, pIconId, 1, 0);
+
+            if (result == 0 || phIcon[0] == IntPtr.Zero) return null;
+
+            IntPtr hIcon = phIcon[0];
+            using Icon icon = Icon.FromHandle(hIcon);
+            Image bitmap = icon.ToBitmap();
+            DestroyIcon(hIcon);
+
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern uint PrivateExtractIconsW(string szFileName, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, uint[] piconid, uint nIcons, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point { public int x; public int y; }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr WindowFromPoint(Point point);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassNameW(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 }

@@ -1,4 +1,5 @@
-﻿using AudioSwitcher.AudioApi.CoreAudio;
+﻿using AudioSwitcher.AudioApi;
+using AudioSwitcher.AudioApi.CoreAudio;
 
 namespace SpotHusher
 {
@@ -33,8 +34,24 @@ namespace SpotHusher
             }
             catch
             {
-                // ingore
+                // ignored
             }
+        }
+
+        public static async Task AdjustVolume(bool isVolumeUp)
+        {
+            var defaultDevice = await CoreAudioController.GetDefaultDeviceAsync(DeviceType.Playback, Role.Multimedia);
+
+            if (isVolumeUp)
+            {
+                defaultDevice.Volume += AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+            }
+            else
+            {
+                defaultDevice.Volume -= AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+            }
+
+            Logger.Debug($"{defaultDevice.FullName} has new valume {defaultDevice.Volume}.");
         }
 
         public static async Task<bool> SetDefaultPlaybackDevice(Guid deviceId)
@@ -63,13 +80,13 @@ namespace SpotHusher
         {
             try
             {
-                _activeCoreAudioDevices ??= (await CoreAudioController.GetDevicesAsync(AudioSwitcher.AudioApi.DeviceState.Active)).ToList();
+                _activeCoreAudioDevices ??= (await CoreAudioController.GetDevicesAsync(DeviceState.Active)).ToList();
 
                 return _activeCoreAudioDevices;
             }
             catch
             {
-                // ingnore
+                // ignored
             }
 
             return [];
