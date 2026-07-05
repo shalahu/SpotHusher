@@ -1,8 +1,9 @@
+using AudioSwitcher.AudioApi.CoreAudio;
+using Microsoft.Win32;
+using SpotHusher;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using Microsoft.Win32;
-using SpotHusher;
 
 using (_ = new Mutex(true, "Global\\SpotHusher_SingleInstance_Mutex_Key", out var isNewInstance))
 {
@@ -44,7 +45,7 @@ public class BackgroundAppContext : ApplicationContext
     private bool _currentAdState;
     private string _currentTrackTitle;
 
-    private List<AudioDevice> _devices;
+    private List<CoreAudioDevice> _devices = [];
     private bool _isSpotifyPlaying;
     private bool _isUserPaused;
     private bool _wasHiddenBefore;
@@ -68,9 +69,9 @@ public class BackgroundAppContext : ApplicationContext
         _monitor.OnPlaybackChanged = title =>
         {
             if (_trayIcon.ContextMenuStrip.InvokeRequired)
-                _trayIcon.ContextMenuStrip.BeginInvoke(() => ProcessSpotifyTitle(title));
+                _trayIcon.ContextMenuStrip.BeginInvoke(() => Task.Run(async () => await ProcessSpotifyTitle(title)));
             else
-                ProcessSpotifyTitle(title);
+                Task.Run(async () => await ProcessSpotifyTitle(title));
         };
 
         _monitor.Start();
@@ -105,7 +106,10 @@ public class BackgroundAppContext : ApplicationContext
             IsAutoSkipAdViaRestartEnabled = !IsAutoSkipAdViaRestartEnabled;
             _autoSkipAdItem.Checked = IsAutoSkipAdViaRestartEnabled;
 
-            if (IsAutoSkipAdViaRestartEnabled && _currentAdState && !_isUserPaused) ExecuteForceSkipAd();
+            if (IsAutoSkipAdViaRestartEnabled && _currentAdState && !_isUserPaused)
+            {
+                Task.Run(async () => await ExecuteForceSkipAd());
+            }
         });
 
         _autoLaunchItem = new ToolStripMenuItem(" ▶️ Auto-Launch Spotify With SpotHusher", null, (s, e) =>
@@ -199,14 +203,17 @@ public class BackgroundAppContext : ApplicationContext
             if (_isUserPaused)
             {
                 _husherItem.Text = "🛡️ Enable SpotHusher";
-                SpotifyAudioController.SetMute(false);
+                Task.Run(async () => await SpotifyAudioController.SetMute(false));
             }
             else
             {
                 _husherItem.Text = "🚫 Disable SpotHusher";
-                SpotifyAudioController.SetMute(_currentAdState);
+                Task.Run(async () => await SpotifyAudioController.SetMute(_currentAdState));
 
-                if (IsAutoSkipAdViaRestartEnabled && _currentAdState) ExecuteForceSkipAd();
+                if (IsAutoSkipAdViaRestartEnabled && _currentAdState)
+                {
+                    Task.Run(async () => await ExecuteForceSkipAd());
+                }
             }
 
             UpdateTrayUi(_currentAdState);
@@ -214,7 +221,8 @@ public class BackgroundAppContext : ApplicationContext
 
         var exitItem = new ToolStripMenuItem("⏻  Exit", null, (s, e) =>
         {
-            SpotifyAudioController.SetMute(false);
+            Task.Run(async () => await SpotifyAudioController.SetMute(false));
+            SpotifyAudioController.Dispose();
 
             RemoveAutoPausePlaybackEvent();
 
@@ -247,7 +255,7 @@ public class BackgroundAppContext : ApplicationContext
                 _autoLaunchItem.Checked = IsAutoLaunchSpotifyEnabled;
                 _autoPauseItem.Checked = IsAutoPausePlaybackEnabled;
 
-                if (_currentTrackTitle != "Spotify is not running") UpdateSpotifyStatus();
+                if (_currentTrackTitle != AppDefs.SpotifyNotRunning) UpdateSpotifyStatus();
 
                 if (audioDevicesMenu.DropDownItems.Count == 0)
                     switch (_devices)
@@ -266,9 +274,9 @@ public class BackgroundAppContext : ApplicationContext
 
                 foreach (var device in _devices)
                 {
-                    var deviceItem = new ToolStripMenuItem(device.Name);
+                    var deviceItem = new ToolStripMenuItem(device.FullName);
 
-                    if (device.IsDefault)
+                    if (device.IsDefaultDevice)
                     {
                         deviceItem.Checked = true;
                         deviceItem.Font = new Font(deviceItem.Font, FontStyle.Bold);
@@ -285,8 +293,8 @@ public class BackgroundAppContext : ApplicationContext
                         deviceItem.Checked = true;
                         deviceItem.Font = new Font(deviceItem.Font, FontStyle.Bold);
 
-                        if (await AudioDeviceController.SetDefaultPlaybackDevice(device.Id))
-                            _trayIcon.ShowBalloonTip(2000, "Audio output switched 🎧", $"Switched to: {device.Name}.",
+                        if (await SpotifyAudioController.SetDefaultPlaybackDevice(device.Id))
+                            _trayIcon.ShowBalloonTip(2000, "Audio output switched 🎧", $"Switched to: {device.FullName}.",
                                 ToolTipIcon.Info);
                     };
 
@@ -319,9 +327,9 @@ public class BackgroundAppContext : ApplicationContext
         { Icon = _playIcon, ContextMenuStrip = contextMenu, Text = "Connecting Spotify...", Visible = true };
         _trayIcon.DoubleClick += (s, e) => { PlayPause(); };
 
-        ProcessSpotifyTitle(_currentTrackTitle);
+        Task.Run(async () => await ProcessSpotifyTitle(_currentTrackTitle));
 
-        Task.Run(async () => _devices = await AudioDeviceController.GetPlaybackDevices());
+        Task.Run(async () => _devices = await SpotifyAudioController.GetActiveDevices());
 
         if (IsAutoLaunchSpotifyEnabled)
         {
@@ -523,22 +531,22 @@ public class BackgroundAppContext : ApplicationContext
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-    private void ExecuteForceSkipAd()
+    private async Task ExecuteForceSkipAd()
     {
         try
         {
             _wasHiddenBefore = _monitor.IsSpotifyHiddenInTray();
 
-            SpotifyAudioController.SetMute(false);
+            await SpotifyAudioController.SetMute(false);
 
-            var processes = Process.GetProcessesByName("Spotify");
+            var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
 
             foreach (var p in processes)
             {
                 try
                 {
                     p.Kill();
-                    p.WaitForExit();
+                    await p.WaitForExitAsync();
                 }
                 catch
                 {
@@ -557,17 +565,17 @@ public class BackgroundAppContext : ApplicationContext
         }
     }
 
-    private void ProcessSpotifyTitle(string title)
+    private async Task ProcessSpotifyTitle(string title)
     {
         Logger.Debug($"Got title {title}.");
 
-        var isSpotifyReady = title.StartsWith("Chrome");
+        var isSpotifyReady = title.StartsWith(AppDefs.SpotifyIsReadyWindowsClassNamePrefix);
 
         if (isSpotifyReady && _autoPlayAfterLaunch)
         {
             if (_wasHiddenBefore)
             {
-                var freshProcs = Process.GetProcessesByName("Spotify");
+                var freshProcs = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
                 foreach (var p in freshProcs)
                 {
                     var hwnd = p.MainWindowHandle;
@@ -595,10 +603,10 @@ public class BackgroundAppContext : ApplicationContext
             _playNext = true;
         }
 
-        _isSpotifyPlaying = !title.StartsWith("Spotify") && !isSpotifyReady;
+        _isSpotifyPlaying = !title.StartsWith(AppDefs.SpotifyProcessName) && !isSpotifyReady;
         var isAd = !title.Contains(" - ") && _isSpotifyPlaying;
         _currentTrackTitle = string.IsNullOrWhiteSpace(title) ? "No active media" :
-            title == "Spotify is not running" ? "Spotify is not running" :
+            title == AppDefs.SpotifyNotRunning ? AppDefs.SpotifyNotRunning :
             isAd ? "Ad..." :
             _isSpotifyPlaying ? title : "Double-click to resume";
         _currentAdState = isAd;
@@ -612,12 +620,12 @@ public class BackgroundAppContext : ApplicationContext
         {
             if (isAd && IsAutoSkipAdViaRestartEnabled)
             {
-                ExecuteForceSkipAd();
+                await ExecuteForceSkipAd();
 
                 return;
             }
 
-            SpotifyAudioController.SetMute(isAd);
+            await SpotifyAudioController.SetMute(isAd);
 
             if (_trayIcon.ContextMenuStrip.InvokeRequired)
                 _trayIcon.ContextMenuStrip.BeginInvoke(() => UpdateTrayUi(isAd));
@@ -638,7 +646,7 @@ public class BackgroundAppContext : ApplicationContext
 
         try
         {
-            var spotifyProcs = Process.GetProcessesByName("Spotify");
+            var spotifyProcs = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
             var isAlreadyRunning = spotifyProcs.Length > 0;
 
             foreach (var p in spotifyProcs) p.Dispose();
@@ -697,7 +705,7 @@ public class BackgroundAppContext : ApplicationContext
         {
             _trayIcon.Icon = _isSpotifyPlaying ? _playIcon : _pausedIcon;
             string text;
-            if (_currentTrackTitle == "Spotify is not running")
+            if (_currentTrackTitle == AppDefs.SpotifyNotRunning)
             {
                 _trayIcon.Icon = _notRunningIcon;
                 _launchItem.Visible = true;

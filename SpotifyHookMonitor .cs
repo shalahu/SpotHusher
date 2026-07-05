@@ -55,7 +55,7 @@ public class SpotifyHookMonitor : IDisposable
     {
         try
         {
-            var processes = Process.GetProcessesByName("Spotify");
+            var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
             if (processes.Length == 0) return true;
 
             var hwnd = processes[0].MainWindowHandle;
@@ -75,7 +75,7 @@ public class SpotifyHookMonitor : IDisposable
                     var ttl = new StringBuilder(512);
                     GetWindowText(checkHwnd, ttl, ttl.Capacity);
 
-                    if (cls.ToString().StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase) &&
+                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase) &&
                         !string.IsNullOrEmpty(ttl.ToString().Trim()))
                     {
                         hasActiveMain = true;
@@ -98,7 +98,7 @@ public class SpotifyHookMonitor : IDisposable
     {
         try
         {
-            var processes = Process.GetProcessesByName("Spotify");
+            var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
             if (processes.Length == 0) return IntPtr.Zero;
 
             var isHidden = IsSpotifyHiddenInTray();
@@ -116,7 +116,7 @@ public class SpotifyHookMonitor : IDisposable
                     GetClassName(hwnd, cls, cls.Capacity);
                     string className = cls.ToString();
 
-                    if (!className.StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase)) 
+                    if (!className.StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase)) 
                         continue;
 
                     var ttl = new StringBuilder(512);
@@ -178,7 +178,7 @@ public class SpotifyHookMonitor : IDisposable
             }
         }
 
-        return "Spotify is not running";
+        return AppDefs.SpotifyNotRunning;
     }
 
     public void PlayPause()
@@ -219,11 +219,11 @@ public class SpotifyHookMonitor : IDisposable
         if (idObject != 0) return;
         if (eventType == EventObjectDestroy && _isSpotifyRunning)
         {
-            if (Process.GetProcessesByName("Spotify").Length == 0)
+            if (Process.GetProcessesByName(AppDefs.SpotifyProcessName).Length == 0)
             {
                 _isSpotifyRunning = false;
 
-                OnPlaybackChanged?.Invoke("Spotify is not running");
+                OnPlaybackChanged?.Invoke(AppDefs.SpotifyNotRunning);
             }
 
             return;
@@ -235,7 +235,7 @@ public class SpotifyHookMonitor : IDisposable
         try
         {
             var proc = Process.GetProcessById((int)pid);
-            if (proc.ProcessName.Equals("Spotify", StringComparison.OrdinalIgnoreCase))
+            if (proc.ProcessName.Equals(AppDefs.SpotifyProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 if (eventType == EventObjectShow) Thread.Sleep(200);
 
@@ -252,8 +252,8 @@ public class SpotifyHookMonitor : IDisposable
 
                 if (!isHidden)
                 {
-                    if (cls.ToString().StartsWith("Chrome_WidgetWin_", StringComparison.OrdinalIgnoreCase) &&
-                        !string.IsNullOrEmpty(title) || title.StartsWith("Chrome", StringComparison.OrdinalIgnoreCase))
+                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrEmpty(title) || title.StartsWith(AppDefs.SpotifyIsReadyWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase))
                         isValid = true;
                 }
                 else
