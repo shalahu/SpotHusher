@@ -41,7 +41,7 @@ SpotHusher achieves its functionality through clean native Windows integrations:
 ### Configuration & Preview
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
 
-![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/screenshot.jpg)
+![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot.jpg)
 
 ### Configuration
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
@@ -51,7 +51,10 @@ Options can be managed instantly by right-clicking the SpotHusher icon in your s
 * **Switch Audio Output:** Lists and toggles your current active playback hardware.
 
 Settings are saved locally in an automatically generated `appsettings.json` file inside the application directory.
+## 🐛 Known Issues
 
+* **Privilege Isolation (Admin vs. Standard User):** If your Spotify client is running with **Administrator privileges** while SpotHusher is running as a **Standard User**, certain core features will not function properly due to Windows User Interface Privilege Isolation (UIPI).
+  * **Solution:** Ensure both applications are running under the same privilege level. It is highly recommended to run both as a standard user, or alternatively, launch SpotHusher as an Administrator.
 ---
 
 ## 📅 Changelog
@@ -93,7 +96,7 @@ dotnet build -c Release
 ### Key Dependencies
 * **[AudioSwitcher.AudioApi.CoreAudio](https://github.com/xenolightning/AudioSwitcher):** For managing and switching native Windows audio playback endpoints.
 
-* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; **if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/NLog.dll) must reside in the app directory.**
+* **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; **if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/Resources/NLog.dll) must reside in the app directory.**
 
 ---
 

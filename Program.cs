@@ -54,14 +54,14 @@ public class BackgroundAppContext : ApplicationContext
 
     public BackgroundAppContext()
     {
-        _playIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.SpotHusher_play.ico", SystemIcons.Shield);
-        _muteIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.SpotHusher_mute.ico", SystemIcons.Error);
+        _playIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_play.ico", SystemIcons.Shield);
+        _muteIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_mute.ico", SystemIcons.Error);
         _pausedIcon =
-            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.SpotHusher_paused.ico", SystemIcons.Warning);
+            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_paused.ico", SystemIcons.Warning);
         _disabledIcon =
-            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.SpotHusher_disabled.ico", SystemIcons.Hand);
+            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_disabled.ico", SystemIcons.Hand);
         _notRunningIcon =
-            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.SpotHusher_not_running.ico", SystemIcons.Information);
+            ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_not_running.ico", SystemIcons.Information);
 
         var contextMenu = new ContextMenuStrip();
 

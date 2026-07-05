@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
-    <ApplicationIcon>SpotHusher_mute.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\SpotHusher_mute.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A lightweight, zero-injection Windows utility that automatically mutes or skips Spotify advertisements by leveraging Win32 hooks and Core Audio COM interfaces.</Description>
     <Title>$(AssemblyName)</Title>
@@ -24,14 +24,15 @@
   <ItemGroup>
     <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.3" />
     <PackageReference Include="AudioSwitcher.AudioApi" Version="3.0.0" />
+    <PackageReference Include="MouseKeyHook" Version="5.7.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="SpotHusher_mute.ico" />
-    <EmbeddedResource Include="SpotHusher_paused.ico" />
-    <EmbeddedResource Include="SpotHusher_play.ico" />
-    <EmbeddedResource Include="SpotHusher_disabled.ico" />
-    <EmbeddedResource Include="SpotHusher_not_running.ico" />
+    <EmbeddedResource Include="Resources\SpotHusher_mute.ico" />
+    <EmbeddedResource Include="Resources\SpotHusher_paused.ico" />
+    <EmbeddedResource Include="Resources\SpotHusher_play.ico" />
+    <EmbeddedResource Include="Resources\SpotHusher_disabled.ico" />
+    <EmbeddedResource Include="Resources\SpotHusher_not_running.ico" />
   </ItemGroup>
 
 </Project>
