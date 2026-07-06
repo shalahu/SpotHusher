@@ -4,36 +4,51 @@ using System.Text;
 
 namespace SpotHusher;
 
-public class SpotifyHookMonitor : IDisposable
+public sealed class SpotifyHookMonitor : IDisposable
 {
     private const uint EventObjectDestroy = 0x8001;
     private const uint EventObjectShow = 0x8002;
     private const uint EventObjectNamechange = 0x800C;
     private const uint WineventOutofcontext = 0;
     private const uint WmAppcommand = 0x0319;
+
     private IntPtr _lifecycleHookHandle = IntPtr.Zero;
     private IntPtr _nameChangeHookHandle = IntPtr.Zero;
-    private WinEventDelegate? _procDelegate;
+
+    private readonly WinEventDelegate _procDelegate;
     private bool _isSpotifyRunning = true;
 
     public Action<string>? OnPlaybackChanged;
+
+    public SpotifyHookMonitor()
+    {
+        _procDelegate = WinEventProc;
+    }
+
+    public void Start()
+    {
+        if (_nameChangeHookHandle != IntPtr.Zero) return;
+
+        _nameChangeHookHandle = SetWinEventHook(EventObjectNamechange, EventObjectNamechange, IntPtr.Zero, _procDelegate, 0, 0, WineventOutofcontext);
+        _lifecycleHookHandle = SetWinEventHook(EventObjectDestroy, EventObjectShow, IntPtr.Zero, _procDelegate, 0, 0, WineventOutofcontext);
+    }
 
     public void Dispose()
     {
         if (_nameChangeHookHandle != IntPtr.Zero) UnhookWinEvent(_nameChangeHookHandle);
         if (_lifecycleHookHandle != IntPtr.Zero) UnhookWinEvent(_lifecycleHookHandle);
+
+        GC.KeepAlive(_procDelegate);
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
-        WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll")]
     private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass,
-        string? lpszWindow);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowText(IntPtr hWnd, StringBuilder strText, int maxCount);
@@ -44,12 +59,17 @@ public class SpotifyHookMonitor : IDisposable
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("user32.dll")]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    private delegate void WinEventProcExecutor(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
 
     public bool IsSpotifyHiddenInTray()
     {
@@ -57,10 +77,8 @@ public class SpotifyHookMonitor : IDisposable
         {
             var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
             if (processes.Length == 0) return true;
-
             var hwnd = processes[0].MainWindowHandle;
             if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd)) return true;
-
             var hasActiveMain = false;
             foreach (var p in processes)
             {
@@ -69,29 +87,21 @@ public class SpotifyHookMonitor : IDisposable
                 {
                     GetWindowThreadProcessId(checkHwnd, out var pid);
                     if (pid != p.Id) continue;
-
                     var cls = new StringBuilder(256);
                     GetClassName(checkHwnd, cls, cls.Capacity);
                     var ttl = new StringBuilder(512);
                     GetWindowText(checkHwnd, ttl, ttl.Capacity);
-
-                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase) &&
-                        !string.IsNullOrEmpty(ttl.ToString().Trim()))
+                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(ttl.ToString().Trim()))
                     {
                         hasActiveMain = true;
                         break;
                     }
                 }
-
                 if (hasActiveMain) break;
             }
-
             return !hasActiveMain;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     private IntPtr FindSpotifyCoreWindow()
@@ -100,10 +110,8 @@ public class SpotifyHookMonitor : IDisposable
         {
             var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
             if (processes.Length == 0) return IntPtr.Zero;
-
             var isHidden = IsSpotifyHiddenInTray();
             var backupHwnd = IntPtr.Zero;
-
             foreach (var p in processes)
             {
                 var hwnd = IntPtr.Zero;
@@ -111,53 +119,38 @@ public class SpotifyHookMonitor : IDisposable
                 {
                     GetWindowThreadProcessId(hwnd, out var pid);
                     if (pid != p.Id) continue;
-
                     var cls = new StringBuilder(256);
                     GetClassName(hwnd, cls, cls.Capacity);
                     string className = cls.ToString();
-
-                    if (!className.StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase)) 
-                        continue;
-
+                    if (!className.StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase)) continue;
                     var ttl = new StringBuilder(512);
                     GetWindowText(hwnd, ttl, ttl.Capacity);
                     var title = ttl.ToString().Trim();
-
                     if (!isHidden)
                     {
                         if (!string.IsNullOrEmpty(title)) return hwnd;
                     }
                     else
                     {
-                        if (backupHwnd == IntPtr.Zero && IsTitleValid(title)) 
-                            backupHwnd = hwnd;
+                        if (backupHwnd == IntPtr.Zero && IsTitleValid(title)) backupHwnd = hwnd;
                     }
                 }
             }
-
             if (backupHwnd == IntPtr.Zero)
             {
                 foreach (var p in processes)
                 {
-                    if (p.MainWindowHandle != IntPtr.Zero)
-                        return p.MainWindowHandle;
+                    if (p.MainWindowHandle != IntPtr.Zero) return p.MainWindowHandle;
                 }
             }
-
             return backupHwnd;
         }
-        catch
-        {
-            return IntPtr.Zero;
-        }
+        catch { return IntPtr.Zero; }
     }
 
     private bool IsTitleValid(string title)
     {
-        return !string.IsNullOrEmpty(title) &&
-               !title.StartsWith("Default", StringComparison.OrdinalIgnoreCase) &&
-               !title.EndsWith("UI", StringComparison.OrdinalIgnoreCase) &&
-               !title.Contains("HintWnd", StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrEmpty(title) && !title.StartsWith("Default", StringComparison.OrdinalIgnoreCase) && !title.EndsWith("UI", StringComparison.OrdinalIgnoreCase) && !title.Contains("HintWnd", StringComparison.OrdinalIgnoreCase);
     }
 
     public string FetchCurrentTitle()
@@ -167,54 +160,28 @@ public class SpotifyHookMonitor : IDisposable
         {
             var sb = new StringBuilder(512);
             GetWindowText(hwnd, sb, sb.Capacity);
-
             var title = sb.ToString().Trim();
             Logger.Debug($"Got title {title}.");
-
             if (!string.IsNullOrEmpty(title))
             {
                 Logger.Debug($"Return title {title}.");
                 return title;
             }
         }
-
         return AppDefs.SpotifyNotRunning;
     }
 
-    public void PlayPause()
-    {
-        SendTargetedCommand(14);
-    }
-
-    public void NextTrack()
-    {
-        SendTargetedCommand(11);
-    }
-
-    public void PreviousTrack()
-    {
-        SendTargetedCommand(12);
-    }
+    public void PlayPause() => SendTargetedCommand(14);
+    public void NextTrack() => SendTargetedCommand(11);
+    public void PreviousTrack() => SendTargetedCommand(12);
 
     private void SendTargetedCommand(long cmd)
     {
         var hwnd = FindSpotifyCoreWindow();
-        if (hwnd != IntPtr.Zero)
-            PostMessage(hwnd, WmAppcommand, IntPtr.Zero, (IntPtr)(cmd << 16));
+        if (hwnd != IntPtr.Zero) PostMessage(hwnd, WmAppcommand, IntPtr.Zero, (IntPtr)(cmd << 16));
     }
 
-    public void Start()
-    {
-        if (_nameChangeHookHandle != IntPtr.Zero) return;
-        _procDelegate = WinEventProc;
-        _nameChangeHookHandle = SetWinEventHook(EventObjectNamechange, EventObjectNamechange, IntPtr.Zero,
-            _procDelegate, 0, 0, WineventOutofcontext);
-        _lifecycleHookHandle = SetWinEventHook(EventObjectDestroy, EventObjectShow, IntPtr.Zero, _procDelegate, 0,
-            0, WineventOutofcontext);
-    }
-
-    private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild,
-        uint dwEventThread, uint dwmsEventTime)
+    private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
     {
         if (idObject != 0) return;
         if (eventType == EventObjectDestroy && _isSpotifyRunning)
@@ -222,44 +189,36 @@ public class SpotifyHookMonitor : IDisposable
             if (Process.GetProcessesByName(AppDefs.SpotifyProcessName).Length == 0)
             {
                 _isSpotifyRunning = false;
-
                 OnPlaybackChanged?.Invoke(AppDefs.SpotifyNotRunning);
             }
-
             return;
         }
-
         GetWindowThreadProcessId(hwnd, out var pid);
         if (pid == 0) return;
-
         try
         {
             var proc = Process.GetProcessById((int)pid);
             if (proc.ProcessName.Equals(AppDefs.SpotifyProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 if (eventType == EventObjectShow) Thread.Sleep(200);
-
                 var cls = new StringBuilder(256);
                 GetClassName(hwnd, cls, cls.Capacity);
                 var sb = new StringBuilder(512);
                 GetWindowText(hwnd, sb, sb.Capacity);
                 var title = sb.ToString().Trim();
-
                 Logger.Debug($"Got title {title}.");
-
                 var isValid = false;
                 var isHidden = IsSpotifyHiddenInTray();
-
                 if (!isHidden)
                 {
-                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase) &&
-                        !string.IsNullOrEmpty(title) || title.StartsWith(AppDefs.SpotifyIsReadyWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase))
-                        isValid = true;
+                    if (cls.ToString().StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix,
+                            StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(title) ||
+                        title.StartsWith(AppDefs.SpotifyIsReadyWindowsClassNamePrefix,
+                            StringComparison.OrdinalIgnoreCase)) isValid = true;
                 }
                 else
                 {
-                    if (IsTitleValid(title))
-                        isValid = true;
+                    if (IsTitleValid(title)) isValid = true;
                 }
 
                 if (isValid && !string.IsNullOrEmpty(title))
@@ -276,7 +235,4 @@ public class SpotifyHookMonitor : IDisposable
             // ignored
         }
     }
-
-    private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild,
-        uint dwEventThread, uint dwmsEventTime);
 }

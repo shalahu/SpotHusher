@@ -8,6 +8,7 @@ SpotHusher is a lightweight, zero-injection Windows system tray application desi
 
 * **🚫 Smart Ad Muting:** Instantly mutes Spotify's specific audio session the millisecond an advertisement begins, and unmutes as soon as your music returns.
 * **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track. <u>**Enable this feature may cause screen flash.**</u>
+* **🔊 Taskbar Volume Control:** Scroll your mouse wheel over the Windows taskbar to instantly adjust the master system volume smoothly.
 * **🎧 Built-in Audio Output Switcher:** Easily change your active Windows playback device directly from the SpotHusher system tray menu.
 * **⏸️ Smart Auto-Pause:** Automatically triggers a pause command when your Windows session locks or enters sleep/suspend modes, keeping your place in your playlist. <u>Double click icon in system tray to resume or pause again.</u>
 * **🚀 Seamless Automation:** Includes options to automatically launch Spotify when SpotHusher starts, run at Windows startup, and quickly generate a desktop shortcut.
@@ -49,6 +50,7 @@ Options can be managed instantly by right-clicking the SpotHusher icon in your s
 * **Auto-Launch Spotify With SpotHusher:** Automatically initializes Spotify alongside this tool.
 * **Auto-Pause Spotify On Lock & Sleep:** Activates the session-state system event listeners.
 * **Switch Audio Output:** Lists and toggles your current active playback hardware.
+* **Scroll on Taskbar to Adjust System Volume:** Enactivates/disactivates global taskbar mouse wheel scrolling to control system volume.
 
 Settings are saved locally in an automatically generated `appsettings.json` file inside the application directory.
 ## 🐛 Known Issues
@@ -58,6 +60,9 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 ---
 
 ## 📅 Changelog
+
+### [V1.5]
+* **Feature:** Integrated global taskbar scrolling feature, allowing users to scroll the mouse wheel anywhere over the Windows taskbar to adjust the master system volume.
 
 ### [V1.4]
 * **Feature:** Added smart auto-pause behavior when the Windows session locks or enters suspend/sleep states.

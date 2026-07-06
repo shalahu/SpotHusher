@@ -7,8 +7,9 @@ dotnet publish -c Release -r win-x86 /p:PublishSingleFile=true --self-contained 
 set "X64_DIR=bin\Release\net10.0-windows\win-x64\publish"
 set "X86_DIR=bin\Release\net10.0-windows\win-x86\publish"
 
-set "ZIP_X64=SpotHusher_x64_V1.4.zip"
-set "ZIP_X86=SpotHusher_x86_V1.4.zip"
+Set "VERSION=1.5"
+set "ZIP_X64=SpotHusher_x64_V%VERSION%.zip"
+set "ZIP_X86=SpotHusher_x86_V%VERSION%.zip"
 
 echo --------------------------------------------------
 echo Starting packaging process...
