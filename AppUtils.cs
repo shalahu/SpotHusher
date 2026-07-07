@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SpotHusher;
 
@@ -219,4 +220,103 @@ public static class ShortcutCreator
             trayIcon.ShowBalloonTip(3000, "Shortcut creation failed ⚠️", $"Error adding SpotHusher to desktop: {ex.Message}", ToolTipIcon.Warning);
         }
     }
+}
+
+public static class IconFactory
+{
+    private static IntPtr _currentDynamicHIcon = IntPtr.Zero;
+
+    public static void Clear([CallerMemberName] string callerName = "")
+    {
+        if (_currentDynamicHIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_currentDynamicHIcon);
+            Logger.Debug($"{_currentDynamicHIcon} - {Thread.CurrentThread.ManagedThreadId} - {callerName}");
+            _currentDynamicHIcon = IntPtr.Zero;
+        }
+    }
+
+    public static void UpdateIcon(int number, NotifyIcon notifyIcon)
+    {
+        Bitmap bitmap = CreateTrayBitmap(number);
+
+        IntPtr hIcon = bitmap.GetHicon();
+        Logger.Debug($"{hIcon} - {number}");
+        Icon newIcon = Icon.FromHandle(hIcon);
+
+        notifyIcon.Icon = newIcon;
+
+        Clear();
+
+        _currentDynamicHIcon = hIcon;
+
+        bitmap.Dispose();
+    }
+
+    public static Bitmap CreateTrayBitmap(int percentage)
+    {
+        int iconSize = SystemInformation.SmallIconSize.Width;
+        Bitmap bmp = new Bitmap(iconSize, iconSize);
+
+        using (Graphics g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+
+            Brush bgBrush;
+            if (percentage >= 90) bgBrush = new SolidBrush(Color.FromArgb(236, 28, 36));
+            else if (percentage >= 70) bgBrush = new SolidBrush(Color.FromArgb(225, 128, 64));
+            else bgBrush = new SolidBrush(Color.FromArgb(0, 128, 64));
+
+            g.FillRectangle(bgBrush, 0, 0, iconSize, iconSize);
+            bgBrush.Dispose();
+
+            string text = percentage.ToString();
+            if (percentage > 99) text = "99";
+
+            float fontEmSize;
+            int yOffset;
+
+            switch (iconSize)
+            {
+                case 16:
+                    fontEmSize = 4.0f;
+                    yOffset = 1;
+                    break;
+                case 20:
+                    fontEmSize = 5.0f;
+                    yOffset = 1;
+                    break;
+                case 24:
+                    fontEmSize = 6.0f;
+                    yOffset = 2;
+                    break;
+                case 32:
+                    fontEmSize = 8.0f;
+                    yOffset = 2;
+                    break;
+                default:
+                    fontEmSize = iconSize / 4.0f;
+                    yOffset = (int)Math.Round(iconSize / 16f);
+                    break;
+            }
+
+            using (Font font = new Font("Lucida Console", fontEmSize, FontStyle.Regular))
+            {
+                TextFormatFlags flags = TextFormatFlags.NoPadding |
+                                        TextFormatFlags.HorizontalCenter |
+                                        TextFormatFlags.VerticalCenter |
+                                        TextFormatFlags.NoClipping;
+
+                Rectangle rect = new Rectangle(0, yOffset, iconSize, iconSize);
+
+                TextRenderer.DrawText(g, text, font, rect, Color.White, flags);
+            }
+        }
+
+        return bmp;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern bool DestroyIcon(IntPtr handle);
 }

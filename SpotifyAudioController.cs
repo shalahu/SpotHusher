@@ -38,20 +38,34 @@ namespace SpotHusher
             }
         }
 
-        public static async Task AdjustVolume(bool isVolumeUp)
+        public static double AdjustVolume(bool isVolumeUp)
         {
-            var defaultDevice = await CoreAudioController.GetDefaultDeviceAsync(DeviceType.Playback, Role.Multimedia);
-
-            if (isVolumeUp)
+            try
             {
-                defaultDevice.Volume += AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+                var defaultDevice = _activeCoreAudioDevices?.First(i => i.IsDefaultDevice);
+
+                if (defaultDevice != null)
+                {
+                    if (isVolumeUp)
+                    {
+                        defaultDevice.Volume += AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+                    }
+                    else
+                    {
+                        defaultDevice.Volume -= AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+                    }
+
+                    Logger.Debug($"{defaultDevice.FullName} has new valume {defaultDevice.Volume}.");
+
+                    return defaultDevice.Volume;
+                }
             }
-            else
+            catch
             {
-                defaultDevice.Volume -= AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
+                // ignored
             }
 
-            Logger.Debug($"{defaultDevice.FullName} has new valume {defaultDevice.Volume}.");
+            return 0;
         }
 
         public static async Task<bool> SetDefaultPlaybackDevice(Guid deviceId)

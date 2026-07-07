@@ -9,11 +9,15 @@
 
         public const string SpotifyNotRunning = "Spotify is not running";
 
+        public const string SpotifyPausedMessage = "Double-click the tray icon to resume";
+
         public const string SpotifyPrimaryGuiWindowsClassNamePrefix = "Chrome_WidgetWin_";
 
         public const string SpotifyIsReadyWindowsClassNamePrefix = "Chrome";
 
         public const string VolumeTextTemplate = "🔊 Scroll on Taskbar to Adjust System Volume (Current: {0}%, Step: {1}%)";
+
+        public const string MemoryTextTemplate = "🧹 Optimize Memory (Curent Privilege: {0}, Physical Usage: {1}%)";
 
         public static AppCfgs AppCfgs = AutoSaveConfig.LoadFromFile<AppCfgs>();
     }
