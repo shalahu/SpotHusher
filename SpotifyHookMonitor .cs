@@ -126,6 +126,7 @@ public sealed class SpotifyHookMonitor : IDisposable
                     var ttl = new StringBuilder(512);
                     GetWindowText(hwnd, ttl, ttl.Capacity);
                     var title = ttl.ToString().Trim();
+                    Logger.Debug($"Got title {title}.");
                     if (!isHidden)
                     {
                         if (!string.IsNullOrEmpty(title)) return hwnd;

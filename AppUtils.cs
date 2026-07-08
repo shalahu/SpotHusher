@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SpotHusher;
 
@@ -319,4 +318,75 @@ public static class IconFactory
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
     private static extern bool DestroyIcon(IntPtr handle);
+}
+
+public class AppLifecycleManager : IDisposable
+{
+    private const string CrashFlagPath = "app.running";
+
+    public bool IsCrashFlagExists;
+
+    public AppLifecycleManager()
+    {
+        IsCrashFlagExists = File.Exists(CrashFlagPath);
+
+        if (!IsCrashFlagExists)
+        {
+            try
+            {
+                File.Create(CrashFlagPath);
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+    }
+
+    private void Clean()
+    {
+        if (File.Exists(CrashFlagPath))
+        {
+            try
+            {
+                File.Delete(CrashFlagPath);
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Clean();
+    }
+}
+
+public static class Extensions
+{
+    public static string ToFriendlyString(this long totalSeconds)
+    {
+        TimeSpan t = TimeSpan.FromSeconds(totalSeconds);
+
+        string FormatUnit(int value, string unit) => $"{value} {unit}{(value == 1 ? "" : "s")}";
+
+        if (t.Days > 0)
+        {
+            return $"{FormatUnit(t.Days, "Day")} {FormatUnit(t.Hours, "Hour")} {FormatUnit(t.Minutes, "Minute")} {FormatUnit(t.Seconds, "Second")}";
+        }
+
+        if (t.Hours > 0)
+        {
+            return $"{FormatUnit(t.Hours, "Hour")} {FormatUnit(t.Minutes, "Minute")} {FormatUnit(t.Seconds, "Second")}";
+        }
+
+        if (t.Minutes > 0)
+        {
+            return $"{FormatUnit(t.Minutes, "Minute")} {FormatUnit(t.Seconds, "Second")}";
+        }
+
+        return $"{FormatUnit(t.Seconds, "Second")}";
+    }
 }

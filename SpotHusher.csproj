@@ -24,6 +24,7 @@
   <ItemGroup>
     <PackageReference Include="AudioSwitcher.AudioApi.CoreAudio" Version="3.0.3" />
     <PackageReference Include="AudioSwitcher.AudioApi" Version="3.0.0" />
+    <PackageReference Include="LiteDB" Version="5.0.21" />
     <PackageReference Include="MouseKeyHook" Version="5.7.1" />
   </ItemGroup>
 

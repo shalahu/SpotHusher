@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using static System.Windows.Forms.AxHost;
 
 namespace SpotHusher
 {
@@ -26,8 +27,10 @@ namespace SpotHusher
         private readonly ToolStripMenuItem _shortcutItem;
         private readonly ToolStripMenuItem _volumeAdjustItem;
         private readonly ToolStripMenuItem _memoOptmizerItem;
+        private readonly ToolStripMenuItem _musicTrackerItem;
         private readonly ToolStripLabel _trackItem;
         private readonly NotifyIcon _trayIcon;
+        private readonly SpotifyMusicTracker _spotifyMusicTracker;
 
         private bool _currentAdState;
         private string _currentTrackTitle;
@@ -42,11 +45,14 @@ namespace SpotHusher
         private bool _isSuperuserMode;
         private bool _isAdmin;
         private System.Timers.Timer _delayTimer;
+        private AppLifecycleManager _appLifecycleManager;
 
         private static IKeyboardMouseEvents? _globalHook;
 
         public TrayAppContext()
         {
+            _appLifecycleManager = new AppLifecycleManager();
+
             _isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
             _isAdmin = IsRunAsAdmin();
 
@@ -160,6 +166,63 @@ namespace SpotHusher
                 Visible = _isSuperuserMode
             };
 
+            _musicTrackerItem = new ToolStripMenuItem("📊 Export Listening Report")
+            {
+                DropDownItems = {
+                    new ToolStripMenuItem("My One-Month Top Singers", null, (s, ev) =>
+                    {
+                        ExportReport(() => _spotifyMusicTracker.GetTopSingersInMonth(int.MaxValue), "Rank,Singer,Count,TotalTime", stat => $"{stat.Singer},{stat.PlayCount},{stat.TotalSeconds.ToFriendlyString()}", "My_One_Month_Top_Singers_Report");
+                    })
+                    ,new ToolStripMenuItem("My One-Month Top Songs", null, (s, ev) =>
+                    {
+                        ExportReport(() => _spotifyMusicTracker.GetTopSongsInMonth(int.MaxValue), "Rank,Song,Count,TotalTime", stat => $"{stat.Song},{stat.PlayCount},{stat.TotalSeconds.ToFriendlyString()}", "My_One_Month_Top_Songs_Report");
+                    })},
+                Visible = _isSuperuserMode
+            };
+
+            void ExportReport<T>(Func<IEnumerable<T>> getStat, string title, Func<T, string> getConent, string fileNamePrefix) where T : Statistics
+            {
+                var statistics = getStat();
+
+                var csv = new StringBuilder();
+                csv.AppendLine(title);
+
+                int rank = 1;
+                foreach (var stat in statistics)
+                {
+                    csv.AppendLine($"{rank++},{getConent(stat)}");
+                }
+
+                var fileName =
+                    $"{fileNamePrefix}-{DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss")}.csv";
+                File.WriteAllText(fileName, csv.ToString(), Encoding.UTF8);
+
+                _trayIcon.BalloonTipClicked += OpenFileFolder;
+
+                _trayIcon.BalloonTipClosed += RemoveClickedEvent;
+
+                _trayIcon.ShowBalloonTip(2000, "Report Exported 📊", $"Saved to {fileName}.",
+                    ToolTipIcon.Info);
+                return;
+
+                void OpenFileFolder(object? s, EventArgs ev)
+                {
+                    string exePath = Environment.ProcessPath;
+
+                    string currentFolder = Path.GetDirectoryName(exePath);
+
+                    Process.Start("explorer.exe", $"/select,\"{Path.Combine(currentFolder, fileName)}\"");
+
+                    RemoveClickedEvent(null, EventArgs.Empty);
+                }
+
+                void RemoveClickedEvent(object? s, EventArgs ev)
+                {
+                    _trayIcon.BalloonTipClicked -= OpenFileFolder;
+                    _trayIcon.BalloonTipClosed -= RemoveClickedEvent;
+                }
+            }
+
             _shortcutItem = new ToolStripMenuItem("📌 Create Desktop Shortcut", null, (s, e) =>
             {
                 var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
@@ -246,6 +309,8 @@ namespace SpotHusher
 
             var exitItem = new ToolStripMenuItem("⏻  Exit", null, (s, e) =>
             {
+                AddAudioLog(LogType.Exited);
+
                 Task.Run(async () => await SpotifyAudioController.SetMute(false));
                 SpotifyAudioController.Dispose();
 
@@ -264,6 +329,7 @@ namespace SpotHusher
                 _disabledIcon.Dispose();
                 _notRunningIcon.Dispose();
                 _monitor.Dispose();
+                _appLifecycleManager.Dispose();
 
                 Application.Exit();
             });
@@ -362,6 +428,7 @@ namespace SpotHusher
             contextMenu.Items.Add(audioDevicesMenu);
             contextMenu.Items.Add(_volumeAdjustItem);
             contextMenu.Items.Add(_memoOptmizerItem);
+            contextMenu.Items.Add(_musicTrackerItem);
             contextMenu.Items.Add(_shortcutItem);
             contextMenu.Items.Add(_autoStartItem);
             contextMenu.Items.Add(new ToolStripSeparator());
@@ -371,6 +438,11 @@ namespace SpotHusher
             _trayIcon = new NotifyIcon
             { Icon = _playIcon, ContextMenuStrip = contextMenu, Text = "Connecting Spotify...", Visible = true };
             _trayIcon.DoubleClick += (s, e) => { PlayPause(); };
+
+            if (_isSuperuserMode)
+            {
+                _spotifyMusicTracker = new SpotifyMusicTracker();
+            }
 
             Task.Run(async () => await ProcessSpotifyTitle(_currentTrackTitle));
 
@@ -559,7 +631,7 @@ namespace SpotHusher
             _delayTimer.Stop();
 
             string shortReport = MemoryOptimizer.Optimize(areas, _trayIcon);
-            
+
             IconFactory.UpdateIcon((int)GetMemoryLoad(), _trayIcon);
 
             Logger.Debug(shortReport);
@@ -728,12 +800,11 @@ namespace SpotHusher
             }
 
             _isSpotifyPlaying = !title.StartsWith(AppDefs.SpotifyProcessName) && title != AppDefs.SpotifyPausedMessage && !isSpotifyReady;
-            var isAd = !title.Contains(" - ") && _isSpotifyPlaying;
+            _currentAdState = !title.Contains(" - ") && _isSpotifyPlaying;
             _currentTrackTitle = string.IsNullOrWhiteSpace(title) ? "No active media" :
                 title == AppDefs.SpotifyNotRunning ? AppDefs.SpotifyNotRunning :
-                isAd ? "Ad..." :
+                _currentAdState ? "Ad..." :
                 _isSpotifyPlaying ? title : AppDefs.SpotifyPausedMessage;
-            _currentAdState = isAd;
 
             if (_trayIcon.ContextMenuStrip.InvokeRequired)
                 _trayIcon.ContextMenuStrip.BeginInvoke(UpdateSpotifyStatus);
@@ -742,19 +813,44 @@ namespace SpotHusher
 
             if (!_isUserPaused)
             {
-                if (isAd && AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled)
+                if (_currentAdState && AppDefs.AppCfgs.AutoSkipAdViaRestartEnabled)
                 {
+                    AddAudioLog(LogType.Advertisement);
                     await ExecuteForceSkipAd();
 
                     return;
                 }
 
-                await SpotifyAudioController.SetMute(isAd);
+                await SpotifyAudioController.SetMute(_currentAdState);
 
                 if (_trayIcon.ContextMenuStrip.InvokeRequired)
-                    _trayIcon.ContextMenuStrip.BeginInvoke(() => UpdateTrayUi(isAd));
+                    _trayIcon.ContextMenuStrip.BeginInvoke(() => UpdateTrayUi(_currentAdState));
                 else
-                    UpdateTrayUi(isAd);
+                    UpdateTrayUi(_currentAdState);
+            }
+        }
+
+        private void AddAudioLog(LogType type)
+        {
+            var updateLstEndTimeUtc = true;
+            if (_appLifecycleManager.IsCrashFlagExists)
+            {
+                updateLstEndTimeUtc = false;
+                _appLifecycleManager.IsCrashFlagExists = false;
+            }
+
+            if (_spotifyMusicTracker != null)
+            {
+                string singer = _currentTrackTitle, song = _currentTrackTitle;
+
+                if (type == LogType.Music)
+                {
+                    var titles = _currentTrackTitle.Split('-');
+                    singer = titles[0].Trim();
+                    song = titles[1].Trim();
+                }
+
+                _spotifyMusicTracker.AddAudioLog(singer, song, type, updateLstEndTimeUtc);
             }
         }
 
@@ -819,6 +915,7 @@ namespace SpotHusher
         {
             if (isMuted)
             {
+                AddAudioLog(LogType.Advertisement);
                 _trayIcon.Icon = _muteIcon;
                 _launchItem.Visible = false;
                 _playPauseItem.Visible = false;
@@ -831,6 +928,7 @@ namespace SpotHusher
                 string text;
                 if (_currentTrackTitle == AppDefs.SpotifyNotRunning)
                 {
+                    AddAudioLog(LogType.NotRunning);
                     _trayIcon.Icon = _notRunningIcon;
                     _launchItem.Visible = true;
                     _playPauseItem.Visible = false;
@@ -838,6 +936,7 @@ namespace SpotHusher
                 }
                 else
                 {
+                    AddAudioLog(_isSpotifyPlaying ? LogType.Music : LogType.Paused);
                     _launchItem.Visible = false;
                     _playPauseItem.Visible = true;
                     text =
