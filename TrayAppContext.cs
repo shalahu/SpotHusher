@@ -1,11 +1,11 @@
 ﻿using AudioSwitcher.AudioApi.CoreAudio;
 using Gma.System.MouseKeyHook;
 using Microsoft.Win32;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
-using static System.Windows.Forms.AxHost;
 
 namespace SpotHusher
 {
@@ -15,6 +15,7 @@ namespace SpotHusher
         private readonly ToolStripMenuItem _autoSkipAdItem;
         private readonly ToolStripMenuItem _autoStartItem;
         private readonly ToolStripMenuItem _autoPauseItem;
+        private readonly ToolStripMenuItem _autoDuckingItem;
         private readonly ToolStripMenuItem _husherItem;
         private readonly ToolStripMenuItem _launchItem;
         private readonly SpotifyHookMonitor _monitor;
@@ -26,11 +27,14 @@ namespace SpotHusher
         private readonly ToolStripControlHost _playPauseItem;
         private readonly ToolStripMenuItem _shortcutItem;
         private readonly ToolStripMenuItem _volumeAdjustItem;
-        private readonly ToolStripMenuItem _memoOptmizerItem;
-        private readonly ToolStripMenuItem _musicTrackerItem;
         private readonly ToolStripLabel _trackItem;
         private readonly NotifyIcon _trayIcon;
         private readonly SpotifyMusicTracker _spotifyMusicTracker;
+        private readonly Dictionary<MouseButtons, string> _mouseMacroBindings = new();
+        private readonly bool _isAdmin;
+        private readonly System.Timers.Timer _delayTimer;
+        private readonly AppLifecycleManager _appLifecycleManager;
+        private readonly BlockingCollection<bool> _scrollQueue = new();
 
         private bool _currentAdState;
         private string _currentTrackTitle;
@@ -41,19 +45,21 @@ namespace SpotHusher
         private bool _autoPlayAfterLaunch;
         private bool _playNext;
         private Button _btnPlay;
-        private Dictionary<MouseButtons, string> _mouseMacroBindings = new();
-        private bool _isSuperuserMode;
-        private bool _isAdmin;
-        private System.Timers.Timer _delayTimer;
-        private AppLifecycleManager _appLifecycleManager;
 
         private static IKeyboardMouseEvents? _globalHook;
 
         public TrayAppContext()
         {
+            Task.Factory.StartNew(
+                ProcessVolumeChanges,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            );
+
             _appLifecycleManager = new AppLifecycleManager();
 
-            _isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
+            var isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
             _isAdmin = IsRunAsAdmin();
 
             _globalHook = Hook.GlobalEvents();
@@ -128,6 +134,52 @@ namespace SpotHusher
                 }
             });
 
+            _autoDuckingItem = new ToolStripMenuItem("🦆 Auto-Audio Ducking for Spotify (May Cause Sudden Volume Changes)")
+            {
+                DropDownItems = {
+                    new ToolStripMenuItem("Paused", null, (s, ev) =>
+                    {
+                        PercentSelected(s, -1);
+                    }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == -1},
+                    new ToolStripMenuItem("Muted", null, (s, ev) =>
+                    {
+                        PercentSelected(s, 100);
+                    }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == 100},
+                    new ToolStripMenuItem("Reduce by 80%", null, (s, ev) =>
+                    {
+                        PercentSelected(s, 80);
+                    }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == 80},
+                    new ToolStripMenuItem("Reduce by 50%", null, (s, ev) =>
+                    {
+                        PercentSelected(s, 50);
+                    }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == 50},
+                    new ToolStripMenuItem("Off", null, (s, ev) =>
+                    {
+                        PercentSelected(s, 0);
+                    }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == 0}},
+                Visible = isSuperuserMode,
+                Checked = AppDefs.AppCfgs.DuckingAttenuationPercent != 0
+            };
+
+            void PercentSelected(object? s, int percent)
+            {
+                foreach (ToolStripMenuItem item in _autoDuckingItem.DropDownItems)
+                {
+                    item.Checked = false;
+                }
+
+                AppDefs.AppCfgs.DuckingAttenuationPercent = percent;
+                AppDefs.AppCfgs.SetValue(nameof(AppCfgs.DuckingAttenuationPercent), AppDefs.AppCfgs.DuckingAttenuationPercent);
+
+                (s as ToolStripMenuItem).Checked = true;
+                var subscribeStateChanged = AppDefs.AppCfgs.DuckingAttenuationPercent != 0;
+                _autoDuckingItem.Checked = subscribeStateChanged;
+
+                SetSessionStateChanged();
+
+                Task.Run(async () => await SpotifyAudioController.SetMute(_currentAdState));
+            }
+
             var audioDevicesMenu = new ToolStripMenuItem("🎧 Switch Audio Output");
             _volumeAdjustItem = new ToolStripMenuItem(string.Format(AppDefs.VolumeTextTemplate, "?", AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep), null, (s, e) =>
             {
@@ -144,7 +196,7 @@ namespace SpotHusher
                 }
             });
 
-            _memoOptmizerItem = new ToolStripMenuItem(string.Format(AppDefs.MemoryTextTemplate, _isAdmin ? "Administrator" : "Standard User", GetMemoryLoad()))
+            var memoOptmizerItem = new ToolStripMenuItem(string.Format(AppDefs.MemoryTextTemplate, _isAdmin ? "Administrator" : "Standard User", GetMemoryLoad()))
             {
                 DropDownItems = {
                     new ToolStripMenuItem("Safe", null, (s, ev) =>
@@ -163,10 +215,10 @@ namespace SpotHusher
                     {
                         OptimizeMemory(MemoryAreas.Desperate);
                     })},
-                Visible = _isSuperuserMode
+                Visible = isSuperuserMode
             };
 
-            _musicTrackerItem = new ToolStripMenuItem("📊 Export Listening Report")
+            var musicTrackerItem = new ToolStripMenuItem("📊 Export Listening Report")
             {
                 DropDownItems = {
                     new ToolStripMenuItem("My One-Month Top Singers", null, (s, ev) =>
@@ -177,7 +229,7 @@ namespace SpotHusher
                     {
                         ExportReport(() => _spotifyMusicTracker.GetTopSongsInMonth(int.MaxValue), "Rank,Song,Count,TotalTime", stat => $"{stat.Song},{stat.PlayCount},{stat.TotalSeconds.ToFriendlyString()}", "My_One_Month_Top_Songs_Report");
                     })},
-                Visible = _isSuperuserMode
+                Visible = isSuperuserMode
             };
 
             void ExportReport<T>(Func<IEnumerable<T>> getStat, string title, Func<T, string> getConent, string fileNamePrefix) where T : Statistics
@@ -351,7 +403,7 @@ namespace SpotHusher
                     _autoPauseItem.Checked = AppDefs.AppCfgs.AutoPausePlaybackEnabled;
                     _volumeAdjustItem.Checked = AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled;
 
-                    _memoOptmizerItem.Text = string.Format(AppDefs.MemoryTextTemplate, _isAdmin ? "Administrator" : "Standard User", GetMemoryLoad());
+                    memoOptmizerItem.Text = string.Format(AppDefs.MemoryTextTemplate, _isAdmin ? "Administrator" : "Standard User", GetMemoryLoad());
 
                     if (_currentTrackTitle != AppDefs.SpotifyNotRunning) UpdateSpotifyStatus();
 
@@ -425,10 +477,11 @@ namespace SpotHusher
             contextMenu.Items.Add(_autoSkipAdItem);
             contextMenu.Items.Add(_autoLaunchItem);
             contextMenu.Items.Add(_autoPauseItem);
+            contextMenu.Items.Add(_autoDuckingItem);
             contextMenu.Items.Add(audioDevicesMenu);
             contextMenu.Items.Add(_volumeAdjustItem);
-            contextMenu.Items.Add(_memoOptmizerItem);
-            contextMenu.Items.Add(_musicTrackerItem);
+            contextMenu.Items.Add(memoOptmizerItem);
+            contextMenu.Items.Add(musicTrackerItem);
             contextMenu.Items.Add(_shortcutItem);
             contextMenu.Items.Add(_autoStartItem);
             contextMenu.Items.Add(new ToolStripSeparator());
@@ -439,7 +492,7 @@ namespace SpotHusher
             { Icon = _playIcon, ContextMenuStrip = contextMenu, Text = "Connecting Spotify...", Visible = true };
             _trayIcon.DoubleClick += (s, e) => { PlayPause(); };
 
-            if (_isSuperuserMode)
+            if (isSuperuserMode)
             {
                 _spotifyMusicTracker = new SpotifyMusicTracker();
             }
@@ -458,19 +511,33 @@ namespace SpotHusher
                 AddAutoPausePlaybackEvent();
             }
 
-            if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
+            if (isSuperuserMode)
             {
-                _globalHook.MouseWheelExt += OnMouseWheelExt;
-            }
+                if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
+                {
+                    _globalHook.MouseWheelExt += OnMouseWheelExt;
+                }
 
-            if (_isSuperuserMode)
-            {
                 _mouseMacroBindings = LoadMouseMacroBindingsFromString(AppDefs.AppCfgs.MouseMacroBindings);
 
                 _globalHook.MouseDownExt += OnGlobalMouseDown;
             }
 
+            SetSessionStateChanged();
+
             return;
+
+            void SetSessionStateChanged()
+            {
+                if (AppDefs.AppCfgs.DuckingAttenuationPercent == -1)
+                {
+                    SpotifyAudioController.OnSessonStateChanged = PlayPause;
+                }
+                else
+                {
+                    SpotifyAudioController.OnSessonStateChanged = null;
+                }
+            }
 
             void AddAutoPausePlaybackEvent()
             {
@@ -515,9 +582,22 @@ namespace SpotHusher
             {
                 if (!string.IsNullOrWhiteSpace(sendKeysPattern))
                 {
-                    SendKeys.SendWait(sendKeysPattern);
                     e.Handled = true;
+
+                    Task.Run(() => ExecuteMacro(sendKeysPattern));
                 }
+            }
+        }
+
+        private void ExecuteMacro(string pattern)
+        {
+            try
+            {
+                SendKeys.SendWait(pattern);
+            }
+            catch
+            {
+                // ignored
             }
         }
 
@@ -567,28 +647,45 @@ namespace SpotHusher
 
         private void OnMouseWheelExt(object? sender, MouseEventExtArgs e)
         {
-
             try
             {
                 IntPtr hWndUnderMouse = WindowFromPoint(new Point { x = e.X, y = e.Y });
                 if (IsTaskbarWindow(hWndUnderMouse))
                 {
-                    _delayTimer.Stop();
+                    e.Handled = true;
 
                     bool isScrollUp = e.Delta > 0;
-
-                    var volume = SpotifyAudioController.AdjustVolume(isScrollUp);
-
-                    IconFactory.UpdateIcon((int)volume, _trayIcon);
-
-                    _delayTimer.Start();
-
-                    e.Handled = true;
+                    _scrollQueue.Add(isScrollUp);
                 }
             }
             catch
             {
                 // ignored
+            }
+        }
+
+        private void ProcessVolumeChanges()
+        {
+            foreach (var isScrollUp in _scrollQueue.GetConsumingEnumerable())
+            {
+                try
+                {
+                    var volume = SpotifyAudioController.AdjustVolume(isScrollUp);
+
+                    if (_trayIcon.ContextMenuStrip.InvokeRequired)
+                    {
+                        _trayIcon.ContextMenuStrip.BeginInvoke(() => IconFactory.UpdateIcon((int)volume, _trayIcon));
+                    }
+                    else
+                    {
+                        IconFactory.UpdateIcon((int)volume, _trayIcon);
+                    }
+
+                }
+                catch
+                {
+                    // ignored
+                }
             }
         }
 
@@ -784,11 +881,16 @@ namespace SpotHusher
 
                 if (_playNext)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(1000));
+                    while (title.StartsWith(AppDefs.SpotifyIsReadyWindowsClassNamePrefix))
+                    {
+                        await Task.Delay(500);
 
-                    Logger.Debug($"Trigger {nameof(_monitor.NextTrack)} when {nameof(_autoPlayAfterLaunch)} is {_autoPlayAfterLaunch} and {nameof(_playNext)} is {_playNext}.");
+                        Logger.Debug($"Trigger {nameof(_monitor.NextTrack)} when {nameof(_autoPlayAfterLaunch)} is {_autoPlayAfterLaunch} and {nameof(_playNext)} is {_playNext}.");
 
-                    _monitor.NextTrack();
+                        _monitor.NextTrack();
+
+                        title = _monitor.FetchCurrentTitle();
+                    }
                 }
                 else
                 {
@@ -968,7 +1070,6 @@ namespace SpotHusher
 
                 if (!int.TryParse(idStr, out int resourceId)) return null;
 
-                int targetId = Math.Abs(resourceId);
                 IntPtr[] phIcon = new IntPtr[1];
                 uint[] pIconId = new uint[1];
                 uint result = PrivateExtractIconsW(dllPath, resourceId, 16, 16, phIcon, pIconId, 1, 0);

@@ -62,5 +62,7 @@ namespace SpotHusher
         public int AdjustVolumeByScrollOnTaskbarPercentPerStep { get; set; } = 1;
 
         public string MouseMacroBindings { get; set; } = string.Empty;
+
+        public int DuckingAttenuationPercent { get; set; } = 0;
     }
 }

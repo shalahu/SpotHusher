@@ -230,7 +230,7 @@ public static class IconFactory
         if (_currentDynamicHIcon != IntPtr.Zero)
         {
             DestroyIcon(_currentDynamicHIcon);
-            Logger.Debug($"{_currentDynamicHIcon} - {Thread.CurrentThread.ManagedThreadId} - {callerName}");
+
             _currentDynamicHIcon = IntPtr.Zero;
         }
     }
@@ -240,7 +240,6 @@ public static class IconFactory
         Bitmap bitmap = CreateTrayBitmap(number);
 
         IntPtr hIcon = bitmap.GetHicon();
-        Logger.Debug($"{hIcon} - {number}");
         Icon newIcon = Icon.FromHandle(hIcon);
 
         notifyIcon.Icon = newIcon;

@@ -1,5 +1,8 @@
 ﻿using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
+using AudioSwitcher.AudioApi.Observables;
+using AudioSwitcher.AudioApi.Session;
+using System.Collections.Concurrent;
 
 namespace SpotHusher
 {
@@ -9,8 +12,19 @@ namespace SpotHusher
 
         private static List<CoreAudioDevice>? _activeCoreAudioDevices;
 
-        public static async Task SetMute(bool mute)
+        private static readonly ConcurrentDictionary<string, IDisposable> ChangedSubs = new();
+
+        public static Action OnSessonStateChanged { get; set; }
+
+        public static async Task SetMute(bool? mute = null)
         {
+            var subscribeStateChanged = AppDefs.AppCfgs.DuckingAttenuationPercent != 0;
+            if (!subscribeStateChanged)
+            {
+                DisposeSub();
+                ChangedSubs.Clear();
+            }
+
             _activeCoreAudioDevices ??= await GetActiveDevices();
 
             try
@@ -20,21 +34,93 @@ namespace SpotHusher
                     var device = _activeCoreAudioDevices[i];
 
                     var audioSessionController = device.SessionController;
-                    var activeSessions = await audioSessionController.AllAsync();
 
-                    foreach (var activeSession in activeSessions)
+                    if (subscribeStateChanged && !ChangedSubs.ContainsKey(device.Id.ToString()))
                     {
-                        if (activeSession.DisplayName == AppDefs.SpotifyProcessName)
+                        var controllerCreatedSub = audioSessionController.SessionCreated.Subscribe(session =>
                         {
-                            activeSession.IsMuted = mute;
+                            if (session.DisplayName != AppDefs.SpotifyProcessName && !ChangedSubs.ContainsKey(session.Id))
+                            {
+                                SubscribeStateChanged(session);
+                            }
+                        });
+
+                        if (!ChangedSubs.TryAdd(device.Id.ToString(), controllerCreatedSub))
+                        {
+                            controllerCreatedSub.Dispose();
+                        }
+                    }
+
+                    var allSessions = await audioSessionController.AllAsync();
+
+                    foreach (var session in allSessions)
+                    {
+                        if (session.DisplayName == AppDefs.SpotifyProcessName)
+                        {
+                            //session.IsMuted = mute;
+
+                            var targetVolume = !mute.HasValue ? 100 - AppDefs.AppCfgs.DuckingAttenuationPercent : mute.Value ? 0 : 100;
+
+                            targetVolume = Math.Clamp(targetVolume, 0, 100);
+                            int step = session.Volume < targetVolume ? 5 : -5;
+
+                            while (session.Volume != targetVolume)
+                            {
+                                if (Math.Abs(targetVolume - session.Volume) < Math.Abs(step))
+                                {
+                                    session.Volume = targetVolume;
+                                }
+                                else
+                                {
+                                    session.Volume += step;
+                                }
+
+                                await Task.Delay(25);
+                            }
+                        }
+                        else
+                        {
+                            if (subscribeStateChanged && !ChangedSubs.ContainsKey(session.Id))
+                            {
+                                SubscribeStateChanged(session);
+                            }
                         }
                     }
                 }
-
             }
             catch
             {
                 // ignored
+            }
+
+            return;
+
+            void SubscribeStateChanged(IAudioSession session)
+            {
+                var sub = session.StateChanged.Subscribe(args =>
+                {
+                    Task.Run(async () =>
+                    {
+                        if (OnSessonStateChanged != null)
+                        {
+                            OnSessonStateChanged();
+                        }
+                        else
+                        {
+                            await SetMute(args.State == AudioSessionState.Active ? null : false);
+                        }
+
+                        if (args.State == AudioSessionState.Expired && ChangedSubs.TryRemove(args.Session.Id, out var disSub))
+                        {
+                            disSub?.Dispose();
+                        }
+                    });
+                });
+
+                if (!ChangedSubs.TryAdd(session.Id, sub))
+                {
+                    sub.Dispose();
+                }
             }
         }
 
@@ -54,8 +140,6 @@ namespace SpotHusher
                     {
                         defaultDevice.Volume -= AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarPercentPerStep;
                     }
-
-                    Logger.Debug($"{defaultDevice.FullName} has new valume {defaultDevice.Volume}.");
 
                     return defaultDevice.Volume;
                 }
@@ -109,6 +193,16 @@ namespace SpotHusher
         public static void Dispose()
         {
             CoreAudioController.Dispose();
+
+            DisposeSub();
+        }
+
+        private static void DisposeSub()
+        {
+            foreach (var sub in ChangedSubs.Values)
+            {
+                sub?.Dispose();
+            }
         }
     }
 }
