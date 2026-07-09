@@ -578,14 +578,11 @@ namespace SpotHusher
 
         private void OnGlobalMouseDown(object sender, MouseEventExtArgs e)
         {
-            if (_mouseMacroBindings.TryGetValue(e.Button, out string sendKeysPattern))
+            if (_mouseMacroBindings.TryGetValue(e.Button, out string sendKeysPattern) && !string.IsNullOrWhiteSpace(sendKeysPattern))
             {
-                if (!string.IsNullOrWhiteSpace(sendKeysPattern))
-                {
-                    e.Handled = true;
+                e.Handled = true;
 
-                    Task.Run(() => ExecuteMacro(sendKeysPattern));
-                }
+                Task.Run(() => ExecuteMacro(sendKeysPattern));
             }
         }
 
@@ -654,8 +651,7 @@ namespace SpotHusher
                 {
                     e.Handled = true;
 
-                    bool isScrollUp = e.Delta > 0;
-                    _scrollQueue.Add(isScrollUp);
+                    _scrollQueue.Add(e.Delta > 0);
                 }
             }
             catch
@@ -670,6 +666,8 @@ namespace SpotHusher
             {
                 try
                 {
+                    _delayTimer.Stop();
+
                     var volume = SpotifyAudioController.AdjustVolume(isScrollUp);
 
                     if (_trayIcon.ContextMenuStrip.InvokeRequired)
@@ -681,6 +679,7 @@ namespace SpotHusher
                         IconFactory.UpdateIcon((int)volume, _trayIcon);
                     }
 
+                    _delayTimer.Start();
                 }
                 catch
                 {
