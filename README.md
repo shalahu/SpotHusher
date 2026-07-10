@@ -147,6 +147,10 @@ SpotHusher stands on the shoulders of several fantastic open-source projects and
 
 * **[winMemoryOptimizer](https://github.com/sergiye/winMemoryOptimizer):** For providing key references on efficient Windows memory optimization techniques and working set management.
 
+* **[X-Mouse Button Control](https://www.highrez.co.uk/downloads/xmousebuttoncontrol.htm)** – A great reference and inspiration for designing global mouse hotkey mapping and advanced button macro bindings.
+
+* **[Volumouse by NirSoft](https://www.nirsoft.net/utils/volumouse.html)** – The definitive inspiration for the taskbar mouse wheel volume control feature, proving how intuitive audio management can be.
+
 * **[Google's Gemini](https://gemini.google.com/)** – For assisting in structuring this project, crafting the documentation, and providing architectural refinement during development.
 
 ---
