@@ -8,6 +8,7 @@ using System.Text;
 
 namespace SpotHusher
 {
+    // https://github.com/sergiye/winMemoryOptimizer
     [Flags]
     public enum MemoryAreas
     {

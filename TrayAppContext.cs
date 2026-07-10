@@ -119,7 +119,7 @@ namespace SpotHusher
                 _autoLaunchItem.Checked = AppDefs.AppCfgs.AutoLaunchSpotifyEnabled;
             });
 
-            _autoPauseItem = new ToolStripMenuItem("⏸️ Auto-Pause Spotify on Lock & Sleep", null, (s, e) =>
+            _autoPauseItem = new ToolStripMenuItem("⏸️ Auto-Pause Spotify on Lock or Sleep", null, (s, e) =>
             {
                 AppDefs.AppCfgs.SetValue(nameof(AppCfgs.AutoPausePlaybackEnabled), !AppDefs.AppCfgs.AutoPausePlaybackEnabled);
                 _autoPauseItem.Checked = AppDefs.AppCfgs.AutoPausePlaybackEnabled;
@@ -157,7 +157,6 @@ namespace SpotHusher
                     {
                         PercentSelected(s, 0);
                     }) {Checked = AppDefs.AppCfgs.DuckingAttenuationPercent == 0}},
-                Visible = isSuperuserMode,
                 Checked = AppDefs.AppCfgs.DuckingAttenuationPercent != 0
             };
 
@@ -214,8 +213,7 @@ namespace SpotHusher
                     new ToolStripMenuItem("Desperate", null, (s, ev) =>
                     {
                         OptimizeMemory(MemoryAreas.Desperate);
-                    })},
-                Visible = isSuperuserMode
+                    })}
             };
 
             var musicTrackerItem = new ToolStripMenuItem("📊 Export Listening Report")
@@ -228,8 +226,7 @@ namespace SpotHusher
                     ,new ToolStripMenuItem("My One-Month Top Songs", null, (s, ev) =>
                     {
                         ExportReport(() => _spotifyMusicTracker.GetTopSongsInMonth(int.MaxValue), "Rank,Song,Count,TotalTime", stat => $"{stat.Song},{stat.PlayCount},{stat.TotalSeconds.ToFriendlyString()}", "My_One_Month_Top_Songs_Report");
-                    })},
-                Visible = isSuperuserMode
+                    })}
             };
 
             void ExportReport<T>(Func<IEnumerable<T>> getStat, string title, Func<T, string> getConent, string fileNamePrefix) where T : Statistics
@@ -492,10 +489,7 @@ namespace SpotHusher
             { Icon = _playIcon, ContextMenuStrip = contextMenu, Text = "Connecting Spotify...", Visible = true };
             _trayIcon.DoubleClick += (s, e) => { PlayPause(); };
 
-            if (isSuperuserMode)
-            {
-                _spotifyMusicTracker = new SpotifyMusicTracker();
-            }
+            _spotifyMusicTracker = new SpotifyMusicTracker();
 
             Task.Run(async () => await ProcessSpotifyTitle(_currentTrackTitle));
 
@@ -511,13 +505,13 @@ namespace SpotHusher
                 AddAutoPausePlaybackEvent();
             }
 
+            if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
+            {
+                _globalHook.MouseWheelExt += OnMouseWheelExt;
+            }
+
             if (isSuperuserMode)
             {
-                if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
-                {
-                    _globalHook.MouseWheelExt += OnMouseWheelExt;
-                }
-
                 _mouseMacroBindings = LoadMouseMacroBindingsFromString(AppDefs.AppCfgs.MouseMacroBindings);
 
                 _globalHook.MouseDownExt += OnGlobalMouseDown;
@@ -567,6 +561,10 @@ namespace SpotHusher
             foreach (var pair in pairs)
             {
                 var parts = pair.Split(':', 2);
+                var btn = parts[0];
+
+                if (btn.StartsWith("-")) continue;
+
                 if (parts.Length == 2 && Enum.TryParse(parts[0], out MouseButtons button))
                 {
                     _bindings[button] = parts[1];
@@ -710,8 +708,8 @@ namespace SpotHusher
             if (!_isAdmin)
             {
                 DialogResult result = MessageBox.Show(
-                    "This memory optimizer requires administrator privileges to access advanced cleaning features.\n\nWould you like to restart the application as an administrator?",
-                    "Privilege Required",
+                    "This feature requires administrator privileges and may cause a temporary system freeze.\n\nWould you like to restart as an administrator to continue?",
+                    "Privilege Required & Waning",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning
                 );

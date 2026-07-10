@@ -17,7 +17,7 @@
 
         public const string VolumeTextTemplate = "🔊 Scroll on Taskbar to Adjust System Volume (Current: {0}%, Step: {1}%)";
 
-        public const string MemoryTextTemplate = "🧹 Optimize Memory (Curent Privilege: {0}, Physical Usage: {1}%)";
+        public const string MemoryTextTemplate = "🧹 Optimize Memory (Current Privilege: {0}, Physical Usage: {1}%)";
 
         public static AppCfgs AppCfgs = AutoSaveConfig.LoadFromFile<AppCfgs>();
     }

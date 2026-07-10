@@ -7,10 +7,14 @@ SpotHusher is a lightweight, zero-injection Windows system tray application desi
 ## ✨ Features
 
 * **🚫 Smart Ad Muting:** Instantly mutes Spotify's specific audio session the millisecond an advertisement begins, and unmutes as soon as your music returns.
-* **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track. <u>**Enable this feature may cause screen flash.**</u>
+* **⚡ Force-Skip via Auto-Restart:** An optional high-speed skip feature that automatically restarts Spotify when an ad is detected, seamlessly advancing to the next track. <u>**Enabling this feature may cause screen flash.**</u>
 * **🔊 Taskbar Volume Control:** Scroll your mouse wheel over the Windows taskbar to instantly adjust the master system volume smoothly.
 * **🎧 Built-in Audio Output Switcher:** Easily change your active Windows playback device directly from the SpotHusher system tray menu.
 * **⏸️ Smart Auto-Pause:** Automatically triggers a pause command when your Windows session locks or enters sleep/suspend modes, keeping your place in your playlist. <u>Double click icon in system tray to resume or pause again.</u>
+* **📉 Global Memory Optimization:** Features a native system-wide RAM cleaner capable of flushing working sets, caches, and standby lists across the entire Windows OS, supporting multiple intensity modes (Safe, Aggressive, Emergency, Desperate). <u>**Enabling this feature requires administrator privileges and may cause the system to freeze temporarily.**</u>
+* **🦆 Audio Ducking:** Automatically attenuates Spotify's volume based on background session states (e.g., during active voice communication or other audio activities) and seamlessly restores it. <u>**Enabling this feature may cause sudden volume changes.**</u>
+* **📊 Monthly Listening Insights:** Local tracking mechanism that automatically logs playback history to generate local monthly insights, showcasing your top artist and most played track of the month.
+* **🖱️ Mouse Macro Bindings:** Supports global mouse hotkey mapping, allowing you to bind specific mouse clicks or extra buttons (like Side Buttons) to custom macro commands or shortcuts.
 * **🚀 Seamless Automation:** Includes options to automatically launch Spotify when SpotHusher starts, run at Windows startup, and quickly generate a desktop shortcut.
 
 ---
@@ -42,7 +46,13 @@ SpotHusher achieves its functionality through clean native Windows integrations:
 ### Configuration & Preview
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
 
-![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot.jpg)
+![SpotHusher Screenshot1](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot1.jpg)
+
+![SpotHusher Screenshot2](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot2.jpg)
+
+![SpotHusher Screenshot3](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot3.jpg)
+
+![SpotHusher Screenshot4](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot4.jpg)
 
 ### Configuration
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
@@ -51,6 +61,17 @@ Options can be managed instantly by right-clicking the SpotHusher icon in your s
 * **Auto-Pause Spotify On Lock & Sleep:** Activates the session-state system event listeners.
 * **Switch Audio Output:** Lists and toggles your current active playback hardware.
 * **Scroll on Taskbar to Adjust System Volume:** Enactivates/disactivates global taskbar mouse wheel scrolling to control system volume.
+* **System Memory Optimization (Multi-Mode):** Toggles and configures the global Windows RAM optimization tool with different intensity levels.
+* **Audio Ducking Options (Multi-Option):** Enables background music suppression and allows adjusting ducking sensitivity, volume reduction percentage, and fade-back delay.
+* **Export Monthly Listening Report:** Generates the report detailing your top artist and most played song of the month.
+* **Mouse Macro Bindings:** Supports global mouse hotkey mapping via the `MouseMacroBindings` parameter in `appsettings.json`. This allows you to bind specific mouse clicks or extra buttons (like Side Buttons) to custom macro commands or media shortcuts.
+  * **Config Key:** `"MouseMacroBindings"`
+  * **Example String:** `"Middle:{MEDIANEXT}|-XButton1:{LEFT}|XButton2:{RIGHT}"`
+  * **Syntax Rules:** 
+    * Individual button mappings are separated by a pipe character (`|`).
+    * The syntax relies on standard Windows SendKeys modifiers: `^` for **Ctrl**, `%` for **Alt**, and `+` for **Shift**.
+    * **Disabling Rules:** Prepend a hyphen (`-`) before a button identifier (e.g., `-XButton1:...`) to temporarily disable that specific rule without deleting it.
+  * **Key Mapping Reference:** To customize your macros, refer to the complete list of accepted key identifiers in the official [SendKeys Reference from Microsoft](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/sendkeys-statement).
 
 Settings are saved locally in an automatically generated `appsettings.json` file inside the application directory.
 ## 🐛 Known Issues
@@ -60,6 +81,12 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 ---
 
 ## 📅 Changelog
+
+### [V1.6]
+* **Feature:** Added **System Memory Optimization** supporting multiple optimization levels to trim RAM usage across the entire Windows OS.
+* **Feature:** Added **Audio Ducking** support, automatically lowering music volume when other communication apps are active.
+* **Feature:** Added **Monthly Listening Report** export, allowing users to track their top artist and most played track each month.
+* **Feature:** Added **Mouse Macro Bindings** supporting global mouse hotkey mapping (`MouseMacroBindings`) in `appsettings.json`, allowing users to bind custom shortcuts to mouse clicks (with toggle/disable support via the `-` prefix).
 
 ### [V1.5]
 * **Feature:** Integrated global taskbar scrolling feature, allowing users to scroll the mouse wheel anywhere over the Windows taskbar to adjust the master system volume.
@@ -101,6 +128,10 @@ dotnet build -c Release
 ### Key Dependencies
 * **[AudioSwitcher.AudioApi.CoreAudio](https://github.com/xenolightning/AudioSwitcher):** For managing and switching native Windows audio playback endpoints.
 
+* **[LiteDB](https://github.com/litedb-org/LiteDB):** Serverless NoSQL embedded database for .NET, utilized for storing and managing local tracking history and playlist insights.
+
+* **[globalmousekeyhook](https://github.com/gmamaladze/globalmousekeyhook):** Library to tap global keyboard and mouse hooks, used to process taskbar mouse wheel scrolling.
+
 * **[NLog](https://github.com/nlog/NLog):** For robust, decoupled diagnostic logging under the hood. To avoid unnecessary bloat, it is decoupled via dynamic reflection; **if logging is required for troubleshooting, [NLog.dll](https://github.com/shalahu/SpotHusher/raw/refs/heads/master/Resources/NLog.dll) must reside in the app directory.**
 
 ---
@@ -113,6 +144,8 @@ SpotHusher stands on the shoulders of several fantastic open-source projects and
 * **[AudioSwitcher_v1](https://github.com/xenolightning/AudioSwitcher_v1)** – For providing a robust framework that greatly simplified the integration of C# with native Windows Core Audio APIs for endpoint switching.
 
 * **[EZBlocker3](https://github.com/OpenByteDev/EZBlocker3)** – A major inspiration for the ad detection mechanism, showcasing how to cleanly utilize window titles and OS interaction for ad blocking without process injection.
+
+* **[winMemoryOptimizer](https://github.com/sergiye/winMemoryOptimizer):** For providing key references on efficient Windows memory optimization techniques and working set management.
 
 * **[Google's Gemini](https://gemini.google.com/)** – For assisting in structuring this project, crafting the documentation, and providing architectural refinement during development.
 
