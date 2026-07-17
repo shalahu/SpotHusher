@@ -82,6 +82,10 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 
 ## 📅 Changelog
 
+### [V1.61]
+* **Optimized** Mouse hook initialization for smoother performance.
+* **Feature** Added support for Miniplayer.
+
 ### [V1.6]
 * **Feature:** Added **System Memory Optimization** supporting multiple optimization levels to trim RAM usage across the entire Windows OS.
 * **Feature:** Added **Audio Ducking** support, automatically lowering music volume when other communication apps are active.
