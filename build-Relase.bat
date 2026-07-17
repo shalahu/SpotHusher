@@ -7,7 +7,7 @@ dotnet publish -c Release -r win-x86 /p:PublishSingleFile=true --self-contained 
 set "X64_DIR=bin\Release\net10.0-windows\win-x64\publish"
 set "X86_DIR=bin\Release\net10.0-windows\win-x86\publish"
 
-Set "VERSION=1.6"
+Set "VERSION=1.61"
 set "ZIP_X64=SpotHusher_x64_V%VERSION%.zip"
 set "ZIP_X86=SpotHusher_x86_V%VERSION%.zip"
 

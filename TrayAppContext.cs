@@ -45,6 +45,8 @@ namespace SpotHusher
         private bool _autoPlayAfterLaunch;
         private bool _playNext;
         private Button _btnPlay;
+        private bool _isHookInitialized;
+        private bool _isSuperuserMode;
 
         private static IKeyboardMouseEvents? _globalHook;
 
@@ -59,10 +61,9 @@ namespace SpotHusher
 
             _appLifecycleManager = new AppLifecycleManager();
 
-            var isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
+            _isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
             _isAdmin = IsRunAsAdmin();
 
-            _globalHook = Hook.GlobalEvents();
             _delayTimer = new System.Timers.Timer(3000) { AutoReset = false };
 
             _delayTimer.Elapsed += (o, args) =>
@@ -70,6 +71,8 @@ namespace SpotHusher
                 IconFactory.Clear();
                 Task.Run(async () => await ProcessSpotifyTitle(_currentTrackTitle));
             };
+
+            Application.Idle += InitializeGlobalHookOnce;
 
             _playIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_play.ico", SystemIcons.Shield);
             _muteIcon = ResourceLoader.LoadEmbeddedIcon($"{nameof(SpotHusher)}.Resources.SpotHusher_mute.ico", SystemIcons.Error);
@@ -339,7 +342,7 @@ namespace SpotHusher
                 _isUserPaused = !_isUserPaused;
                 if (_isUserPaused)
                 {
-                    _husherItem.Text = "🛡️ Enable SpotHusher";
+                    _husherItem.Text = "🤫 Enable SpotHusher";
                     Task.Run(async () => await SpotifyAudioController.SetMute(false));
                 }
                 else
@@ -505,16 +508,9 @@ namespace SpotHusher
                 AddAutoPausePlaybackEvent();
             }
 
-            if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
-            {
-                _globalHook.MouseWheelExt += OnMouseWheelExt;
-            }
-
-            if (isSuperuserMode)
+            if (_isSuperuserMode)
             {
                 _mouseMacroBindings = LoadMouseMacroBindingsFromString(AppDefs.AppCfgs.MouseMacroBindings);
-
-                _globalHook.MouseDownExt += OnGlobalMouseDown;
             }
 
             SetSessionStateChanged();
@@ -543,6 +539,33 @@ namespace SpotHusher
             {
                 SystemEvents.PowerModeChanged -= OnPowerModeChanged;
                 SystemEvents.SessionSwitch -= OnSessionSwitch;
+            }
+        }
+
+        private void InitializeGlobalHookOnce(object? sender, EventArgs e)
+        {
+            if (_isHookInitialized) return;
+            _isHookInitialized = true;
+
+            Application.Idle -= InitializeGlobalHookOnce;
+
+            try
+            {
+                _globalHook = Hook.GlobalEvents();
+
+                if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled) 
+                {
+                    _globalHook.MouseWheelExt += OnMouseWheelExt; 
+                }
+
+                if (_isSuperuserMode) 
+                {
+                    _globalHook.MouseDownExt += OnGlobalMouseDown; 
+                }
+            }
+            catch
+            {
+                // ignored
             }
         }
 
@@ -899,7 +922,7 @@ namespace SpotHusher
             }
 
             _isSpotifyPlaying = !title.StartsWith(AppDefs.SpotifyProcessName) && title != AppDefs.SpotifyPausedMessage && !isSpotifyReady;
-            _currentAdState = !title.Contains(" - ") && _isSpotifyPlaying;
+            _currentAdState = !title.Contains(" - ") && !title.Contains(" • ") && _isSpotifyPlaying;
             _currentTrackTitle = string.IsNullOrWhiteSpace(title) ? "No active media" :
                 title == AppDefs.SpotifyNotRunning ? AppDefs.SpotifyNotRunning :
                 _currentAdState ? "Ad..." :
@@ -944,7 +967,7 @@ namespace SpotHusher
 
                 if (type == LogType.Music)
                 {
-                    var titles = _currentTrackTitle.Split('-');
+                    var titles = _currentTrackTitle.Contains("-") ? _currentTrackTitle.Split('-') : _currentTrackTitle.Split('•');
                     singer = titles[0].Trim();
                     song = titles[1].Trim();
                 }
@@ -1031,7 +1054,7 @@ namespace SpotHusher
                     _trayIcon.Icon = _notRunningIcon;
                     _launchItem.Visible = true;
                     _playPauseItem.Visible = false;
-                    text = $"SpotHusher {(_isUserPaused ? "🚫" : "🛡️")}\n⚠️ Spotify is not running";
+                    text = $"SpotHusher {(_isUserPaused ? "🚫" : "🤫")}\n⚠️ Spotify is not running";
                 }
                 else
                 {
@@ -1039,7 +1062,7 @@ namespace SpotHusher
                     _launchItem.Visible = false;
                     _playPauseItem.Visible = true;
                     text =
-                        $"SpotHusher {(_isUserPaused ? "🚫" : "🛡️")}\n{(_isSpotifyPlaying ? "🎵 Playing" : "⏸️ Paused")}: {_currentTrackTitle}";
+                        $"SpotHusher {(_isUserPaused ? "🚫" : "🤫")}\n{(_isSpotifyPlaying ? "🎵 Playing" : "⏸️ Paused")}: {_currentTrackTitle}";
                 }
 
                 _trayIcon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
