@@ -219,7 +219,36 @@ namespace SpotHusher
                     })}
             };
 
-            var musicTrackerItem = new ToolStripMenuItem("📊 Export Listening Report")
+            var powerManagerItem = new ToolStripMenuItem("🖥️ System Power")
+            {
+                DropDownItems = {
+                    new ToolStripMenuItem("👤 Logoff", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.Logoff();
+                    }),
+                    new ToolStripMenuItem("🛑 Shutdown", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.Shutdown();
+                    }),
+                    new ToolStripMenuItem("📦 Hibernate", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.Hibernate();
+                    }),
+                    new ToolStripMenuItem("🌙 Stand By", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.StandBy();
+                    }),
+                    new ToolStripMenuItem("🔒 Lock", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.Lock();
+                    }),
+                    new ToolStripMenuItem("🔄 Restart", null, (s, ev) =>
+                    {
+                        WindowsPowerManager.Restart();
+                    })}
+            };
+
+            var musicTrackerItem = new ToolStripMenuItem("📈 Export Listening Report")
             {
                 DropDownItems = {
                     new ToolStripMenuItem("My One-Month Top Singers", null, (s, ev) =>
@@ -239,7 +268,7 @@ namespace SpotHusher
                 var csv = new StringBuilder();
                 csv.AppendLine(title);
 
-                int rank = 1;
+                var rank = 1;
                 foreach (var stat in statistics)
                 {
                     csv.AppendLine($"{rank++},{getConent(stat)}");
@@ -259,9 +288,9 @@ namespace SpotHusher
 
                 void OpenFileFolder(object? s, EventArgs ev)
                 {
-                    string exePath = Environment.ProcessPath;
+                    var exePath = Environment.ProcessPath;
 
-                    string currentFolder = Path.GetDirectoryName(exePath);
+                    var currentFolder = Path.GetDirectoryName(exePath);
 
                     Process.Start("explorer.exe", $"/select,\"{Path.Combine(currentFolder, fileName)}\"");
 
@@ -303,7 +332,7 @@ namespace SpotHusher
                 }
             });
 
-            _autoStartItem = new ToolStripMenuItem("⚙ Run at Windows Startup", null, (s, e) =>
+            _autoStartItem = new ToolStripMenuItem("🔌 Run at Windows Startup", null, (s, e) =>
             {
                 try
                 {
@@ -474,18 +503,23 @@ namespace SpotHusher
             contextMenu.Items.Add(_launchItem);
             contextMenu.Items.Add(_playPauseItem);
             contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add(_autoSkipAdItem);
-            contextMenu.Items.Add(_autoLaunchItem);
-            contextMenu.Items.Add(_autoPauseItem);
+            contextMenu.Items.Add(new ToolStripMenuItem("🕹️ Spotify Control") { DropDownItems = { _autoSkipAdItem, _autoLaunchItem, _autoPauseItem, _volumeAdjustItem } });
+            //contextMenu.Items.Add(_autoSkipAdItem);
+            //contextMenu.Items.Add(_autoLaunchItem);
+            //contextMenu.Items.Add(_autoPauseItem);
             contextMenu.Items.Add(_autoDuckingItem);
+            // contextMenu.Items.Add(new ToolStripMenuItem("🛠️ System Tools") { DropDownItems = { _volumeAdjustItem} });
             contextMenu.Items.Add(audioDevicesMenu);
-            contextMenu.Items.Add(_volumeAdjustItem);
+            //contextMenu.Items.Add(_volumeAdjustItem);
             contextMenu.Items.Add(memoOptmizerItem);
+            contextMenu.Items.Add(powerManagerItem);
+            // contextMenu.Items.Add(new ToolStripMenuItem("📊 Data & Insights") { DropDownItems = { musicTrackerItem } });
             contextMenu.Items.Add(musicTrackerItem);
-            contextMenu.Items.Add(_shortcutItem);
-            contextMenu.Items.Add(_autoStartItem);
+            contextMenu.Items.Add(new ToolStripMenuItem("⚙️ Settings") { DropDownItems = { _shortcutItem, _autoStartItem, _husherItem } });
+            //contextMenu.Items.Add(_shortcutItem);
+            //contextMenu.Items.Add(_autoStartItem);
             contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add(_husherItem);
+            //contextMenu.Items.Add(_husherItem);
             contextMenu.Items.Add(exitItem);
 
             _trayIcon = new NotifyIcon
@@ -553,14 +587,14 @@ namespace SpotHusher
             {
                 _globalHook = Hook.GlobalEvents();
 
-                if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled) 
+                if (AppDefs.AppCfgs.AdjustVolumeByScrollOnTaskbarEnabled)
                 {
-                    _globalHook.MouseWheelExt += OnMouseWheelExt; 
+                    _globalHook.MouseWheelExt += OnMouseWheelExt;
                 }
 
-                if (_isSuperuserMode) 
+                if (_isSuperuserMode)
                 {
-                    _globalHook.MouseDownExt += OnGlobalMouseDown; 
+                    _globalHook.MouseDownExt += OnGlobalMouseDown;
                 }
             }
             catch
@@ -599,7 +633,7 @@ namespace SpotHusher
 
         private void OnGlobalMouseDown(object sender, MouseEventExtArgs e)
         {
-            if (_mouseMacroBindings.TryGetValue(e.Button, out string sendKeysPattern) && !string.IsNullOrWhiteSpace(sendKeysPattern))
+            if (_mouseMacroBindings.TryGetValue(e.Button, out var sendKeysPattern) && !string.IsNullOrWhiteSpace(sendKeysPattern))
             {
                 e.Handled = true;
 
@@ -621,7 +655,7 @@ namespace SpotHusher
 
         private ToolStripControlHost CreateMediaControlItem()
         {
-            FlowLayoutPanel panel = new FlowLayoutPanel
+            var panel = new FlowLayoutPanel
             {
                 Size = new Size(256, 52),
                 BackColor = Color.Transparent,
@@ -630,15 +664,15 @@ namespace SpotHusher
                 WrapContents = false
             };
 
-            Button btnPrev = CreateMediaButton("⏮", (s, e) => { _monitor.PreviousTrack(); });
+            var btnPrev = CreateMediaButton("⏮", (s, e) => { _monitor.PreviousTrack(); });
             _btnPlay = CreateMediaButton("⏸️ / ▶️", (s, e) => { PlayPause(); });
-            Button btnNext = CreateMediaButton("⏭", (s, e) => { _monitor.NextTrack(); });
+            var btnNext = CreateMediaButton("⏭", (s, e) => { _monitor.NextTrack(); });
 
             panel.Controls.Add(btnPrev);
             panel.Controls.Add(_btnPlay);
             panel.Controls.Add(btnNext);
 
-            ToolStripControlHost hostItem = new ToolStripControlHost(panel);
+            var hostItem = new ToolStripControlHost(panel);
 
             hostItem.AutoSize = false;
             hostItem.Size = panel.Size;
@@ -667,7 +701,7 @@ namespace SpotHusher
         {
             try
             {
-                IntPtr hWndUnderMouse = WindowFromPoint(new Point { x = e.X, y = e.Y });
+                var hWndUnderMouse = WindowFromPoint(new Point { x = e.X, y = e.Y });
                 if (IsTaskbarWindow(hWndUnderMouse))
                 {
                     e.Handled = true;
@@ -730,7 +764,7 @@ namespace SpotHusher
         {
             if (!_isAdmin)
             {
-                DialogResult result = MessageBox.Show(
+                var result = MessageBox.Show(
                     "This feature requires administrator privileges and may cause a temporary system freeze.\n\nWould you like to restart as an administrator to continue?",
                     "Privilege Required & Waning",
                     MessageBoxButtons.YesNo,
@@ -747,7 +781,7 @@ namespace SpotHusher
 
             _delayTimer.Stop();
 
-            string shortReport = MemoryOptimizer.Optimize(areas, _trayIcon);
+            var shortReport = MemoryOptimizer.Optimize(areas, _trayIcon);
 
             IconFactory.UpdateIcon((int)GetMemoryLoad(), _trayIcon);
 
@@ -761,16 +795,16 @@ namespace SpotHusher
 
         private static bool IsRunAsAdmin()
         {
-            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            using (var identity = WindowsIdentity.GetCurrent())
             {
-                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                var principal = new WindowsPrincipal(identity);
                 return principal.IsInRole(WindowsBuiltInRole.Administrator);
             }
         }
 
         private static void RestartAsAdmin()
         {
-            ProcessStartInfo startInfo = new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = Environment.ProcessPath,
                 Arguments = $"--wait-for-pid {Process.GetCurrentProcess().Id}",
@@ -794,9 +828,9 @@ namespace SpotHusher
             {
                 if (hWnd == IntPtr.Zero) return false;
                 var buffer = new StringBuilder(256);
-                int length = GetClassNameW(hWnd, buffer, buffer.Capacity);
+                var length = GetClassNameW(hWnd, buffer, buffer.Capacity);
                 if (length == 0) return false;
-                string className = buffer.ToString();
+                var className = buffer.ToString();
 
                 var targets = new List<string>() { "TrayShowDesktopButtonWClass", "TrayClockWClass", "MSTaskListWClass", "ToolbarWindow32", "Shell_TrayWnd", "SIBTrayButton", "MSTaskSwWClass" };
 
@@ -1080,24 +1114,24 @@ namespace SpotHusher
 
             try
             {
-                string expandedPath = Environment.ExpandEnvironmentVariables(resourcePath);
-                int commaIndex = expandedPath.LastIndexOf(',');
+                var expandedPath = Environment.ExpandEnvironmentVariables(resourcePath);
+                var commaIndex = expandedPath.LastIndexOf(',');
 
                 if (commaIndex == -1) return null;
 
-                string dllPath = expandedPath[..commaIndex];
-                string idStr = expandedPath[(commaIndex + 1)..];
+                var dllPath = expandedPath[..commaIndex];
+                var idStr = expandedPath[(commaIndex + 1)..];
 
-                if (!int.TryParse(idStr, out int resourceId)) return null;
+                if (!int.TryParse(idStr, out var resourceId)) return null;
 
-                IntPtr[] phIcon = new IntPtr[1];
-                uint[] pIconId = new uint[1];
-                uint result = PrivateExtractIconsW(dllPath, resourceId, 16, 16, phIcon, pIconId, 1, 0);
+                var phIcon = new IntPtr[1];
+                var pIconId = new uint[1];
+                var result = PrivateExtractIconsW(dllPath, resourceId, 16, 16, phIcon, pIconId, 1, 0);
 
                 if (result == 0 || phIcon[0] == IntPtr.Zero) return null;
 
-                IntPtr hIcon = phIcon[0];
-                using Icon icon = Icon.FromHandle(hIcon);
+                var hIcon = phIcon[0];
+                using var icon = Icon.FromHandle(hIcon);
                 Image bitmap = icon.ToBitmap();
                 DestroyIcon(hIcon);
 

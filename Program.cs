@@ -7,7 +7,7 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
-        if (args.Length > 0 && args[0] == "--wait-for-pid" && args.Length > 1 && int.TryParse(args[1], out int pid))
+        if (args.Length > 0 && args[0] == "--wait-for-pid" && args.Length > 1 && int.TryParse(args[1], out var pid))
         {
             try
             {

@@ -8,14 +8,14 @@ namespace SpotHusher
 
         public static T LoadFromFile<T>() where T : AutoSaveConfig, new()
         {
-            T configInstance = new T();
+            var configInstance = new T();
 
-            string targetFile = configInstance.FileName;
+            var targetFile = configInstance.FileName;
 
             if (!File.Exists(targetFile))
             {
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                byte[] initialBytes = JsonSerializer.SerializeToUtf8Bytes(configInstance, typeof(T), options);
+                var initialBytes = JsonSerializer.SerializeToUtf8Bytes(configInstance, typeof(T), options);
                 File.WriteAllBytes(targetFile, initialBytes);
 
                 return configInstance;
@@ -23,10 +23,10 @@ namespace SpotHusher
 
             try
             {
-                byte[] jsonBytes = File.ReadAllBytes(targetFile);
+                var jsonBytes = File.ReadAllBytes(targetFile);
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
-                T loadedInstance = JsonSerializer.Deserialize<T>(jsonBytes, options);
+                var loadedInstance = JsonSerializer.Deserialize<T>(jsonBytes, options);
 
                 return loadedInstance ?? configInstance;
             }
@@ -44,7 +44,7 @@ namespace SpotHusher
             property.SetValue(this, newValue);
 
             var options = new JsonSerializerOptions { WriteIndented = true };
-            byte[] jsonBytes = JsonSerializer.SerializeToUtf8Bytes(this, this.GetType(), options);
+            var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(this, this.GetType(), options);
             File.WriteAllBytes(FileName, jsonBytes);
         }
     }

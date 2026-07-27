@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace SpotHusher;
 
@@ -237,11 +238,11 @@ public static class IconFactory
 
     public static void UpdateIcon(int number, NotifyIcon notifyIcon)
     {
-        Bitmap bitmap = CreateTrayBitmap(number);
+        var bitmap = CreateTrayBitmap(number);
 
-        IntPtr hIcon = bitmap.GetHicon();
+        var hIcon = bitmap.GetHicon();
         Logger.Debug($"{hIcon} - {number}");
-        Icon newIcon = Icon.FromHandle(hIcon);
+        var newIcon = Icon.FromHandle(hIcon);
 
         notifyIcon.Icon = newIcon;
 
@@ -254,10 +255,10 @@ public static class IconFactory
 
     public static Bitmap CreateTrayBitmap(int percentage)
     {
-        int iconSize = SystemInformation.SmallIconSize.Width;
-        Bitmap bmp = new Bitmap(iconSize, iconSize);
+        var iconSize = SystemInformation.SmallIconSize.Width;
+        var bmp = new Bitmap(iconSize, iconSize);
 
-        using (Graphics g = Graphics.FromImage(bmp))
+        using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
@@ -270,7 +271,7 @@ public static class IconFactory
             g.FillRectangle(bgBrush, 0, 0, iconSize, iconSize);
             bgBrush.Dispose();
 
-            string text = percentage.ToString();
+            var text = percentage.ToString();
             if (percentage > 99) text = "99";
 
             float fontEmSize;
@@ -300,14 +301,14 @@ public static class IconFactory
                     break;
             }
 
-            using (Font font = new Font("Lucida Console", fontEmSize, FontStyle.Regular))
+            using (var font = new Font("Lucida Console", fontEmSize, FontStyle.Regular))
             {
-                TextFormatFlags flags = TextFormatFlags.NoPadding |
-                                        TextFormatFlags.HorizontalCenter |
-                                        TextFormatFlags.VerticalCenter |
-                                        TextFormatFlags.NoClipping;
+                var flags = TextFormatFlags.NoPadding |
+                            TextFormatFlags.HorizontalCenter |
+                            TextFormatFlags.VerticalCenter |
+                            TextFormatFlags.NoClipping;
 
-                Rectangle rect = new Rectangle(0, yOffset, iconSize, iconSize);
+                var rect = new Rectangle(0, yOffset, iconSize, iconSize);
 
                 TextRenderer.DrawText(g, text, font, rect, Color.White, flags);
             }
@@ -368,7 +369,7 @@ public static class Extensions
 {
     public static string ToFriendlyString(this long totalSeconds)
     {
-        TimeSpan t = TimeSpan.FromSeconds(totalSeconds);
+        var t = TimeSpan.FromSeconds(totalSeconds);
 
         string FormatUnit(int value, string unit) => $"{value} {unit}{(value == 1 ? "" : "s")}";
 
@@ -388,5 +389,175 @@ public static class Extensions
         }
 
         return $"{FormatUnit(t.Seconds, "Second")}";
+    }
+}
+
+public static class WindowsPowerManager
+{
+    private const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
+    private const int TOKEN_QUERY = 0x00000008;
+    private const string SE_SHUTDOWN_NAME = "SeShutdownPrivilege";
+    private const int SE_PRIVILEGE_ENABLED = 0x00000002;
+
+    private const uint EWX_LOGOFF = 0x00000000;
+    private const uint EWX_SHUTDOWN = 0x00000001;
+    private const uint EWX_REBOOT = 0x00000002;
+    private const uint EWX_FORCE = 0x00000004;
+    private const uint EWX_POWEROFF = 0x00000008;
+
+    private const uint SHTDN_REASON_FLAG_PLANNED = 0x80000000;
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct LUID
+    {
+        public uint LowPart;
+        public int HighPart;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct LUID_AND_ATTRIBUTES
+    {
+        public LUID Luid;
+        public uint Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct TOKEN_PRIVILEGES
+    {
+        public uint PrivilegeCount;
+        public LUID_AND_ATTRIBUTES Privileges;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr ProcessHandle, int DesiredAccess, ref IntPtr TokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, ref LUID lpLuid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(
+        IntPtr TokenHandle,
+        bool DisableAllPrivileges,
+        ref TOKEN_PRIVILEGES NewState,
+        uint BufferLength,
+        IntPtr PreviousState,
+        IntPtr ReturnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool LockWorkStation();
+
+    [DllImport("powrprof.dll", SetLastError = true)]
+    private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+
+    private static bool EnableShutdownPrivilege()
+    {
+        var hToken = IntPtr.Zero;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref hToken))
+        {
+            return false;
+        }
+
+        try
+        {
+            var luid = new LUID();
+            if (!LookupPrivilegeValue(null, SE_SHUTDOWN_NAME, ref luid))
+            {
+                return false;
+            }
+
+            var tp = new TOKEN_PRIVILEGES
+            {
+                PrivilegeCount = 1,
+                Privileges = new LUID_AND_ATTRIBUTES
+                {
+                    Luid = luid,
+                    Attributes = SE_PRIVILEGE_ENABLED
+                }
+            };
+
+            if (!AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
+            {
+                return false;
+            }
+
+            return Marshal.GetLastWin32Error() == 0;
+        }
+        finally
+        {
+            if (hToken != IntPtr.Zero)
+            {
+                CloseHandle(hToken);
+            }
+        }
+    }
+
+    private static bool ConfirmAction(string actionName)
+    {
+        var result = MessageBox.Show(
+            $"Do you really want to {actionName}?", 
+            "System Power", 
+            MessageBoxButtons.YesNo, 
+            MessageBoxIcon.Question);
+
+        return result == DialogResult.Yes;
+    }
+
+    public static bool Shutdown()
+    {
+        if (!ConfirmAction("shutdown")) return false;
+
+        if (EnableShutdownPrivilege())
+        {
+            return ExitWindowsEx(EWX_SHUTDOWN | EWX_POWEROFF | EWX_FORCE, SHTDN_REASON_FLAG_PLANNED);
+        }
+        return false;
+    }
+
+    public static bool Restart()
+    {
+        if (!ConfirmAction("restart")) return false;
+
+        if (EnableShutdownPrivilege())
+        {
+            return ExitWindowsEx(EWX_REBOOT | EWX_FORCE, SHTDN_REASON_FLAG_PLANNED);
+        }
+        return false;
+    }
+
+    public static bool Logoff()
+    {
+        if (!ConfirmAction("logoff")) return false;
+
+        return ExitWindowsEx(EWX_LOGOFF | EWX_FORCE, 0);
+    }
+
+    public static bool Lock()
+    {
+        if (!ConfirmAction("lock the computer")) return false;
+
+        return LockWorkStation();
+    }
+
+    public static bool StandBy()
+    {
+        if (!ConfirmAction("stand by")) return false;
+
+        return SetSuspendState(false, true, true);
+    }
+
+    public static bool Hibernate()
+    {
+        if (!ConfirmAction("hibernate")) return false;
+
+        return SetSuspendState(true, true, true);
     }
 }

@@ -121,7 +121,7 @@ public sealed class SpotifyHookMonitor : IDisposable
                     if (pid != p.Id) continue;
                     var cls = new StringBuilder(256);
                     GetClassName(hwnd, cls, cls.Capacity);
-                    string className = cls.ToString();
+                    var className = cls.ToString();
                     if (!className.StartsWith(AppDefs.SpotifyPrimaryGuiWindowsClassNamePrefix, StringComparison.OrdinalIgnoreCase)) continue;
                     var ttl = new StringBuilder(512);
                     GetWindowText(hwnd, ttl, ttl.Capacity);

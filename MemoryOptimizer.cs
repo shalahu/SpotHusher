@@ -84,7 +84,7 @@ namespace SpotHusher
                             MaximumWorkingSet = -1L
                         };
 
-                        GCHandle handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
+                        var handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
                         try
                         {
                             ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(21, handle.AddrOfPinnedObject(), Marshal.SizeOf(cacheInfo)));
@@ -99,7 +99,7 @@ namespace SpotHusher
                             MaximumWorkingSet = uint.MaxValue
                         };
 
-                        GCHandle handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
+                        var handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
                         try
                         {
                             ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(21, handle.AddrOfPinnedObject(), Marshal.SizeOf(cacheInfo)));
@@ -107,7 +107,7 @@ namespace SpotHusher
                         finally { handle.Free(); }
                     }
 
-                    IntPtr flushVal = IntPtr.Subtract(IntPtr.Zero, 1);
+                    var flushVal = IntPtr.Subtract(IntPtr.Zero, 1);
                     ThrowIfWin32Failed(NativeMethods.SetSystemFileCacheSize(flushVal, flushVal, 0));
                 }, stopwatch, log);
             }
@@ -117,8 +117,8 @@ namespace SpotHusher
                 ExecuteAction("Modified Page List", () =>
                 {
                     ElevatePrivilege("SeProfileSingleProcessPrivilege");
-                    int command = 3;
-                    GCHandle handle = GCHandle.Alloc(command, GCHandleType.Pinned);
+                    var command = 3;
+                    var handle = GCHandle.Alloc(command, GCHandleType.Pinned);
                     try
                     {
                         ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(80, handle.AddrOfPinnedObject(), Marshal.SizeOf(command)));
@@ -132,8 +132,8 @@ namespace SpotHusher
                 ExecuteAction("Standby List", () =>
                 {
                     ElevatePrivilege("SeProfileSingleProcessPrivilege");
-                    int command = (areas & MemoryAreas.StandbyListLowPriority) != 0 ? 5 : 4;
-                    GCHandle handle = GCHandle.Alloc(command, GCHandleType.Pinned);
+                    var command = (areas & MemoryAreas.StandbyListLowPriority) != 0 ? 5 : 4;
+                    var handle = GCHandle.Alloc(command, GCHandleType.Pinned);
                     try
                     {
                         ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(80, handle.AddrOfPinnedObject(), Marshal.SizeOf(command)));
@@ -148,7 +148,7 @@ namespace SpotHusher
                 {
                     ElevatePrivilege("SeProfileSingleProcessPrivilege");
                     var combineInfo = new MemoryCombineInformationEx();
-                    GCHandle handle = GCHandle.Alloc(combineInfo, GCHandleType.Pinned);
+                    var handle = GCHandle.Alloc(combineInfo, GCHandleType.Pinned);
                     try
                     {
                         ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(130, handle.AddrOfPinnedObject(), Marshal.SizeOf(combineInfo)));
@@ -215,7 +215,7 @@ namespace SpotHusher
                             MaximumWorkingSet = -1L
                         };
 
-                        GCHandle handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
+                        var handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
                         try
                         {
                             ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(21, handle.AddrOfPinnedObject(), Marshal.SizeOf(cacheInfo)));
@@ -230,7 +230,7 @@ namespace SpotHusher
                             MaximumWorkingSet = int.MaxValue
                         };
 
-                        GCHandle handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
+                        var handle = GCHandle.Alloc(cacheInfo, GCHandleType.Pinned);
                         try
                         {
                             ThrowIfNtFailed(NativeMethods.NtSetSystemInformation(21, handle.AddrOfPinnedObject(), Marshal.SizeOf(cacheInfo)));
@@ -238,7 +238,7 @@ namespace SpotHusher
                         finally { handle.Free(); }
                     }
 
-                    IntPtr flushVal = IntPtr.Subtract(IntPtr.Zero, 1);
+                    var flushVal = IntPtr.Subtract(IntPtr.Zero, 1);
                     ThrowIfWin32Failed(NativeMethods.SetSystemFileCacheSize(flushVal, flushVal, 0));
                 }, stopwatch, log);
             }
@@ -247,7 +247,7 @@ namespace SpotHusher
             {
                 ExecuteAction("Registry Cache", () =>
                 {
-                    uint res = NativeMethods.NtSetSystemInformation(155, IntPtr.Zero, 0);
+                    var res = NativeMethods.NtSetSystemInformation(155, IntPtr.Zero, 0);
                     if (res != 0) throw new NativeStatusException(res);
 
                 }, stopwatch, log);
@@ -266,11 +266,11 @@ namespace SpotHusher
             totalStopwatch.Stop();
             var (physAfter, virtAfter, _) = GetMemoryStatus();
 
-            long releasedPhysBytes = (long)physAfter - (long)physBefore;
-            double releasedPhysGB = Math.Max(0.0, releasedPhysBytes / (1024.0 * 1024.0 * 1024.0));
+            var releasedPhysBytes = (long)physAfter - (long)physBefore;
+            var releasedPhysGB = Math.Max(0.0, releasedPhysBytes / (1024.0 * 1024.0 * 1024.0));
 
-            long releasedVirtBytes = (long)virtAfter - (long)virtBefore;
-            double releasedVirtGB = Math.Max(0.0, releasedVirtBytes / (1024.0 * 1024.0 * 1024.0));
+            var releasedVirtBytes = (long)virtAfter - (long)virtBefore;
+            var releasedVirtGB = Math.Max(0.0, releasedVirtBytes / (1024.0 * 1024.0 * 1024.0));
 
             //log.AppendLine("------------------------------------------------");
             if (releasedPhysGB <= 0.0 && releasedVirtGB <= 0.0)
@@ -359,7 +359,7 @@ namespace SpotHusher
 
             public static NativeStatusException FromWin32Error(int win32Error)
             {
-                uint ntStatusFromWin32 = 0xD0000000 | (uint)win32Error;
+                var ntStatusFromWin32 = 0xD0000000 | (uint)win32Error;
                 return new NativeStatusException(ntStatusFromWin32);
             }
         }

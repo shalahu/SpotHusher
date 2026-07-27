@@ -16,6 +16,7 @@ SpotHusher is a lightweight, zero-injection Windows system tray application desi
 * **📊 Monthly Listening Insights:** Local tracking mechanism that automatically logs playback history to generate local monthly insights, showcasing your top artist and most played track of the month.
 * **🖱️ Mouse Macro Bindings:** Supports global mouse hotkey mapping, allowing you to bind specific mouse clicks or extra buttons (like Side Buttons) to custom macro commands or shortcuts.
 * **🚀 Seamless Automation:** Includes options to automatically launch Spotify when SpotHusher starts, run at Windows startup, and quickly generate a desktop shortcut.
+* **💻 System Power Shortcuts:** Provides instant access to core Windows power state operations (Logoff, Shutdown, Hibernate, Stand By, Lock, Restart) directly via the system tray menu without navigating the OS Start Menu.
 
 ---
 
@@ -46,13 +47,7 @@ SpotHusher achieves its functionality through clean native Windows integrations:
 ### Configuration & Preview
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
 
-![SpotHusher Screenshot1](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot1.jpg)
-
-![SpotHusher Screenshot2](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot2.jpg)
-
-![SpotHusher Screenshot3](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot3.jpg)
-
-![SpotHusher Screenshot4](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot4.jpg)
+![SpotHusher Screenshot](https://raw.githubusercontent.com/shalahu/SpotHusher/refs/heads/master/Resources/screenshot.jpg)
 
 ### Configuration
 Options can be managed instantly by right-clicking the SpotHusher icon in your system tray:
@@ -72,6 +67,7 @@ Options can be managed instantly by right-clicking the SpotHusher icon in your s
     * The syntax relies on standard Windows SendKeys modifiers: `^` for **Ctrl**, `%` for **Alt**, and `+` for **Shift**.
     * **Disabling Rules:** Prepend a hyphen (`-`) before a button identifier (e.g., `-XButton1:...`) to temporarily disable that specific rule without deleting it.
   * **Key Mapping Reference:** To customize your macros, refer to the complete list of accepted key identifiers in the official [SendKeys Reference from Microsoft](https://learn.microsoft.com/en-us/office/vba/language/reference/user-interface-help/sendkeys-statement).
+* **System Power (Multi-Option)**: Exposes immediate system control actions linking natively to Windows power operations, enabling swift user management for workstation lockouts, sign-offs, or power-downs.
 
 Settings are saved locally in an automatically generated `appsettings.json` file inside the application directory.
 ## 🐛 Known Issues
@@ -81,6 +77,14 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 ---
 
 ## 📅 Changelog
+
+### [V1.70]
+* **Feature** Added **System Power** supporting instant access to core Windows power state.
+
+
+### [V1.61]
+* **Optimized** Mouse hook initialization for smoother performance.
+* **Feature** Added support for Miniplayer.
 
 ### [V1.6]
 * **Feature:** Added **System Memory Optimization** supporting multiple optimization levels to trim RAM usage across the entire Windows OS.

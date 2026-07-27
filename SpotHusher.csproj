@@ -14,7 +14,7 @@
     <Title>$(AssemblyName)</Title>
     <PackageProjectUrl>https://github.com/shalahu/SpotHusher/</PackageProjectUrl>
     <MajorVersion>1</MajorVersion>
-    <MinorVersion>4</MinorVersion>
+    <MinorVersion>7</MinorVersion>
     <DaysSince2026>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse("2026-01-01"))).Days)</DaysSince2026>
     <MinutesOfDay>$([System.DateTime]::UtcNow.TimeOfDay.TotalMinutes.ToString("0"))</MinutesOfDay>
     <Version>$(MajorVersion).$(MinorVersion).$(DaysSince2026).$(MinutesOfDay)</Version>

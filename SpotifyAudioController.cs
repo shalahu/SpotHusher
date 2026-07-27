@@ -29,7 +29,7 @@ namespace SpotHusher
 
             try
             {
-                for (int i = 0; i < _activeCoreAudioDevices.Count; i++)
+                for (var i = 0; i < _activeCoreAudioDevices.Count; i++)
                 {
                     var device = _activeCoreAudioDevices[i];
 
@@ -62,7 +62,7 @@ namespace SpotHusher
                             var targetVolume = !mute.HasValue ? 100 - AppDefs.AppCfgs.DuckingAttenuationPercent : mute.Value ? 0 : 100;
 
                             targetVolume = Math.Clamp(targetVolume, 0, 100);
-                            int step = session.Volume < targetVolume ? 5 : -5;
+                            var step = session.Volume < targetVolume ? 5 : -5;
 
                             while (session.Volume != targetVolume)
                             {
