@@ -78,6 +78,9 @@ Settings are saved locally in an automatically generated `appsettings.json` file
 
 ## 📅 Changelog
 
+### [V1.72]
+* **Improvement** Fixed Spotify client restart failure.
+
 ### [V1.70]
 * **Feature** Added **System Power** supporting instant access to core Windows power state.
 

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using Timer = System.Timers.Timer;
 
 namespace SpotHusher
 {
@@ -32,7 +33,8 @@ namespace SpotHusher
         private readonly SpotifyMusicTracker _spotifyMusicTracker;
         private readonly Dictionary<MouseButtons, string> _mouseMacroBindings = new();
         private readonly bool _isAdmin;
-        private readonly System.Timers.Timer _delayTimer;
+        private readonly Timer _iconDelayTimer;
+        private readonly Timer _spotifyClientDelayTimer;
         private readonly AppLifecycleManager _appLifecycleManager;
         private readonly BlockingCollection<bool> _scrollQueue = new();
 
@@ -64,12 +66,24 @@ namespace SpotHusher
             _isSuperuserMode = !string.IsNullOrEmpty(AppDefs.AppCfgs.MouseMacroBindings);
             _isAdmin = IsRunAsAdmin();
 
-            _delayTimer = new System.Timers.Timer(3000) { AutoReset = false };
+            _iconDelayTimer = new Timer(3000) { AutoReset = false };
 
-            _delayTimer.Elapsed += (o, args) =>
+            _iconDelayTimer.Elapsed += (o, args) =>
             {
                 IconFactory.Clear();
                 Task.Run(async () => await ProcessSpotifyTitle(_currentTrackTitle));
+            };
+
+            _spotifyClientDelayTimer = new Timer(3000) { AutoReset = false };
+
+            _spotifyClientDelayTimer.Elapsed += (o, args) =>
+            {
+                Logger.Debug($"{nameof(_isSpotifyPlaying)} is {_isSpotifyPlaying}, {nameof(_currentTrackTitle)} is {_currentTrackTitle}.");
+                if (!_isSpotifyPlaying && _currentTrackTitle == AppDefs.SpotifyNotRunning)
+                {
+                    Logger.Debug("Failed to restart Spotify client, will try to restart it again.");
+                    LaunchSpotifyClient(true);
+                }
             };
 
             Application.Idle += InitializeGlobalHookOnce;
@@ -399,7 +413,7 @@ namespace SpotHusher
 
                 _globalHook.MouseWheelExt -= OnMouseWheelExt;
                 _globalHook.MouseDownExt -= OnGlobalMouseDown;
-                _delayTimer.Dispose();
+                _iconDelayTimer.Dispose();
 
                 _trayIcon.Visible = false;
 
@@ -503,12 +517,12 @@ namespace SpotHusher
             contextMenu.Items.Add(_launchItem);
             contextMenu.Items.Add(_playPauseItem);
             contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add(new ToolStripMenuItem("🕹️ Spotify Control") { DropDownItems = { _autoSkipAdItem, _autoLaunchItem, _autoPauseItem, _volumeAdjustItem } });
+            contextMenu.Items.Add(new ToolStripMenuItem("🕹️ Spotify Control") { DropDownItems = { _autoSkipAdItem, _autoLaunchItem, _autoPauseItem } });
             //contextMenu.Items.Add(_autoSkipAdItem);
             //contextMenu.Items.Add(_autoLaunchItem);
             //contextMenu.Items.Add(_autoPauseItem);
             contextMenu.Items.Add(_autoDuckingItem);
-            // contextMenu.Items.Add(new ToolStripMenuItem("🛠️ System Tools") { DropDownItems = { _volumeAdjustItem} });
+            contextMenu.Items.Add(_volumeAdjustItem);
             contextMenu.Items.Add(audioDevicesMenu);
             //contextMenu.Items.Add(_volumeAdjustItem);
             contextMenu.Items.Add(memoOptmizerItem);
@@ -721,7 +735,7 @@ namespace SpotHusher
             {
                 try
                 {
-                    _delayTimer.Stop();
+                    _iconDelayTimer.Stop();
 
                     var volume = SpotifyAudioController.AdjustVolume(isScrollUp);
 
@@ -734,7 +748,7 @@ namespace SpotHusher
                         IconFactory.UpdateIcon((int)volume, _trayIcon);
                     }
 
-                    _delayTimer.Start();
+                    _iconDelayTimer.Start();
                 }
                 catch
                 {
@@ -779,7 +793,7 @@ namespace SpotHusher
                 return;
             }
 
-            _delayTimer.Stop();
+            _iconDelayTimer.Stop();
 
             var shortReport = MemoryOptimizer.Optimize(areas, _trayIcon);
 
@@ -790,7 +804,7 @@ namespace SpotHusher
             _trayIcon.ShowBalloonTip(3000, "Memory optimized 🧹", shortReport,
                 ToolTipIcon.Info);
 
-            _delayTimer.Start();
+            _iconDelayTimer.Start();
         }
 
         private static bool IsRunAsAdmin()
@@ -881,25 +895,6 @@ namespace SpotHusher
                 _wasHiddenBefore = _monitor.IsSpotifyHiddenInTray();
 
                 await SpotifyAudioController.SetMute(false);
-
-                var processes = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
-
-                foreach (var p in processes)
-                {
-                    try
-                    {
-                        p.Kill();
-
-                        // not suitable for awaitable method of WaitForExit, we MUST use a synchronous call here
-                        p.WaitForExit();
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-
-                    p.Dispose();
-                }
 
                 LaunchSpotifyClient(true);
             }
@@ -1018,44 +1013,40 @@ namespace SpotHusher
 
         private void LaunchSpotifyClient(bool autoPlayAfterLaunch, bool playNext = true)
         {
+            _spotifyClientDelayTimer.Stop();
+
             var targetPath = string.Empty;
 
             try
             {
-                var spotifyProcs = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
-                var isAlreadyRunning = spotifyProcs.Length > 0;
+                CloseSpotifyClient();
 
-                foreach (var p in spotifyProcs) p.Dispose();
-
-                if (!isAlreadyRunning)
+                using (var key = Registry.CurrentUser.OpenSubKey(
+                           @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Spotify.exe"))
                 {
-                    using (var key = Registry.CurrentUser.OpenSubKey(
+                    if (key != null) targetPath = key.GetValue("")?.ToString() ?? string.Empty;
+                }
+
+                if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
+                    using (var key = Registry.LocalMachine.OpenSubKey(
                                @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Spotify.exe"))
                     {
                         if (key != null) targetPath = key.GetValue("")?.ToString() ?? string.Empty;
                     }
 
-                    if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
-                        using (var key = Registry.LocalMachine.OpenSubKey(
-                                   @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Spotify.exe"))
-                        {
-                            if (key != null) targetPath = key.GetValue("")?.ToString() ?? string.Empty;
-                        }
-
-                    if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
-                    {
-                        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                        targetPath = Path.Combine(appData, @"Spotify\Spotify.exe");
-                    }
-
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = File.Exists(targetPath) ? targetPath : "spotify:",
-                        UseShellExecute = true,
-                        WindowStyle = ProcessWindowStyle.Minimized,
-                        Arguments = "--autostart --minimized"
-                    });
+                if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
+                {
+                    var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                    targetPath = Path.Combine(appData, @"Spotify\Spotify.exe");
                 }
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = File.Exists(targetPath) ? targetPath : "spotify:",
+                    UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Minimized,
+                    Arguments = "--autostart --minimized"
+                });
 
                 _autoPlayAfterLaunch = autoPlayAfterLaunch;
                 _playNext = playNext;
@@ -1064,6 +1055,30 @@ namespace SpotHusher
             {
                 _trayIcon.ShowBalloonTip(3000, "Spotify start failed 🚀", $"Error starting Spotify: {ex.Message}",
                     ToolTipIcon.Warning);
+            }
+
+            _spotifyClientDelayTimer.Start();
+        }
+
+        private static void CloseSpotifyClient()
+        {
+            var spotifyProcs = Process.GetProcessesByName(AppDefs.SpotifyProcessName);
+
+            foreach (var p in spotifyProcs)
+            {
+                try
+                {
+                    p.Kill();
+
+                    // not suitable for awaitable method of WaitForExit, we MUST use a synchronous call here
+                    p.WaitForExit();
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                p.Dispose();
             }
         }
 

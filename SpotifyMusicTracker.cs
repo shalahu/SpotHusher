@@ -28,7 +28,7 @@ public record SongStatistics(string Song, int PlayCount, long TotalSeconds) : St
 
 public class SpotifyMusicTracker
 {
-    private readonly string _dbPath = "SpotTracker.db";
+    private readonly string _dbPath = Path.Combine(AppContext.BaseDirectory, "SpotTracker.db");
 
     public void AddAudioLog(string? singer, string? song, LogType type, bool updateLstEndTimeUtc = true)
     {
